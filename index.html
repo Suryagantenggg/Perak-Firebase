@@ -81,7 +81,6 @@
       const [transactions, setTransactions] = useState([]);
       const [categories, setCategories] = useState([]);
       const [pemodalList, setPemodalList] = useState([]);
-      const [withdrawalList, setWithdrawalList] = useState([]);
       const [userList, setUserList] = useState([]);
 
       const [newCatCode, setNewCatCode] = useState('');
@@ -128,14 +127,6 @@
         jumlahModal: '',
         tanggalBergabung: getTodayFormatted(),
         kontak: '',
-        catatan: ''
-      });
-
-      // STATE MODAL PENARIKAN MODAL
-      const [selectedPemodalWithdraw, setSelectedPemodalWithdraw] = useState(null);
-      const [formWithdraw, setFormWithdraw] = useState({
-        tanggal: getTodayFormatted(),
-        jumlahTarik: '',
         catatan: ''
       });
 
@@ -267,27 +258,6 @@
         }, 100);
       }, [currentUser]);
 
-      // FETCH DATA PENARIKAN MODAL
-      useEffect(() => {
-        if (!currentUser) return;
-
-        const checkWD = setInterval(() => {
-          if (window.fbDb) {
-            clearInterval(checkWD);
-            const { collection, query, orderBy, onSnapshot } = window.fbFS;
-            const q = query(collection(window.fbDb, "pemodal_withdrawals"), orderBy("createdAt", "desc"));
-
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-              const list = [];
-              snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
-              setWithdrawalList(list);
-            });
-
-            return () => unsubscribe();
-          }
-        }, 100);
-      }, [currentUser]);
-
       const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -317,6 +287,7 @@
           const { createUserWithEmailAndPassword, doc, setDoc } = window.fbFS;
           const userCred = await createUserWithEmailAndPassword(window.fbAuth, signupEmail.trim(), signupPassword.trim());
           
+          // DEFAULT ROLE SAAT DAFTAR ADALAH PETUGAS
           await setDoc(doc(window.fbDb, "users", userCred.user.uid), {
             nama: signupNama.trim(),
             email: signupEmail.trim(),
@@ -393,59 +364,8 @@
         }
       };
 
-      const handleSaveWithdrawal = async (e) => {
-        e.preventDefault();
-        const nominal = parseFloat(formWithdraw.jumlahTarik) || 0;
-        if (!selectedPemodalWithdraw || nominal <= 0) return alert('Nominal penarikan harus > 0!');
-
-        // Hitung total tarik yang sudah ada
-        const existingWithdrawn = withdrawalList
-          .filter(w => w.pemodalId === selectedPemodalWithdraw.id)
-          .reduce((sum, w) => sum + (w.jumlahTarik || 0), 0);
-        const sisaModalMax = selectedPemodalWithdraw.jumlahModal - existingWithdrawn;
-
-        if (nominal > sisaModalMax) {
-          return alert(`Jumlah penarikan (Rp ${nominal.toLocaleString()}) melebihi sisa modal aktif (Rp ${sisaModalMax.toLocaleString()})!`);
-        }
-
-        setLoading(true);
-        try {
-          const { collection, addDoc } = window.fbFS;
-          await addDoc(collection(window.fbDb, "pemodal_withdrawals"), {
-            pemodalId: selectedPemodalWithdraw.id,
-            namaPemodal: selectedPemodalWithdraw.namaPemodal,
-            tanggal: formWithdraw.tanggal,
-            jumlahTarik: nominal,
-            catatan: formWithdraw.catatan.trim() || '-',
-            createdAt: Date.now()
-          });
-          setLoading(false);
-          showToast('💸 Penarikan modal berhasil dicatat!');
-          setSelectedPemodalWithdraw(null);
-          setFormWithdraw({ tanggal: getTodayFormatted(), jumlahTarik: '', catatan: '' });
-        } catch (err) {
-          setLoading(false);
-          alert('Gagal memproses penarikan modal: ' + err.message);
-        }
-      };
-
-      const handleDeleteWithdrawal = async (id) => {
-        if (window.confirm('Batalkan / Hapus data penarikan modal ini?')) {
-          setLoading(true);
-          try {
-            const { doc, deleteDoc } = window.fbFS;
-            await deleteDoc(doc(window.fbDb, "pemodal_withdrawals", id));
-            setLoading(false);
-            showToast('🗑️ Penarikan modal dibatalkan!');
-          } catch (err) {
-            setLoading(false);
-            alert('Gagal menghapus data penarikan modal!');
-          }
-        }
-      };
-
       const handleDeletePemodal = async (id) => {
-        if (window.confirm('Hapus data pemodal ini dari Firestore? (Riwayat penarikan modal juga akan terpengaruh)')) {
+        if (window.confirm('Hapus data pemodal ini dari Firestore?')) {
           setLoading(true);
           try {
             const { doc, deleteDoc } = window.fbFS;
@@ -741,16 +661,11 @@
       });
 
       const pemodalTotalLabaPeriod = pemodalFilteredTransactions.reduce((acc, t) => acc + (t.totalUntung || 0), 0);
-      
-      // HITUNG TOTAL MODAL INVESTOR AKTIF (BERSIH SETELAH PENARIKAN MODAL)
-      const totalModalAwalSetor = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
-      const totalPenarikanModalAll = withdrawalList.reduce((acc, w) => acc + (w.jumlahTarik || 0), 0);
-      const totalModalAktifNet = totalModalAwalSetor - totalPenarikanModalAll;
-
+      const totalModalInvestasi = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
       const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
       const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
 
-      // KALKULASI ARUS KAS & NERACA DENGAN MENYERTAKAN MODAL INVESTOR DAN PENARIKAN
+      // KALKULASI ARUS KAS & NERACA DENGAN MENYERTAKAN MODAL INVESTOR
       const neracaFilteredTransactions = transactions.filter(t => {
         const tDate = t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil;
 
@@ -780,30 +695,13 @@
         return true;
       });
 
-      const filteredWithdrawalList = withdrawalList.filter(w => {
-        const wDate = w.tanggal;
-        if (neracaFilterType === 'MONTH') {
-          if (!neracaFilterMonth || !wDate) return true;
-          return wDate.startsWith(neracaFilterMonth);
-        } else if (neracaFilterType === 'RANGE') {
-          if (!wDate) return false;
-          if (neracaStartDate && wDate < neracaStartDate) return false;
-          if (neracaEndDate && wDate > neracaEndDate) return false;
-          return true;
-        }
-        return true;
-      });
-
       const totalModalInvestorPeriod = filteredPemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
       const totalKasMasukPenjualan = neracaFilteredTransactions.reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalKasMasukKeseluruhan = totalModalInvestorPeriod + totalKasMasukPenjualan;
 
-      const totalBiayaOperasionalTrx = neracaFilteredTransactions.reduce((acc, t) => {
+      const totalKasKeluar = neracaFilteredTransactions.reduce((acc, t) => {
         return acc + (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0);
       }, 0);
-      const totalKasKeluarWithdraw = filteredWithdrawalList.reduce((acc, w) => acc + (w.jumlahTarik || 0), 0);
-
-      const totalKasKeluar = totalBiayaOperasionalTrx + totalKasKeluarWithdraw;
 
       const saldoKasNet = totalKasMasukKeseluruhan - totalKasKeluar;
 
@@ -947,103 +845,6 @@
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white">
               <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
               <p className="text-sm font-bold tracking-wider">Menghubungkan ke Firebase Cloud...</p>
-            </div>
-          )}
-
-          {/* MODAL FORM PENARIKAN MODAL */}
-          {selectedPemodalWithdraw && (
-            <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-sm text-amber-400">💸 Penarikan Modal Investor</h3>
-                    <p className="text-xs text-slate-300 font-semibold">{selectedPemodalWithdraw.namaPemodal}</p>
-                  </div>
-                  <button 
-                    onClick={() => setSelectedPemodalWithdraw(null)}
-                    className="text-slate-400 hover:text-white text-lg font-bold"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveWithdrawal} className="p-6 space-y-4">
-                  {(() => {
-                    const totalWD = withdrawalList
-                      .filter(w => w.pemodalId === selectedPemodalWithdraw.id)
-                      .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
-                    const sisaModal = selectedPemodalWithdraw.jumlahModal - totalWD;
-
-                    return (
-                      <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-1">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-slate-500 font-medium">Modal Awal Setor:</span>
-                          <span className="font-bold text-slate-800">{formatRupiah(selectedPemodalWithdraw.jumlahModal)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-slate-500 font-medium">Total Pernah Ditarik:</span>
-                          <span className="font-bold text-red-600">-{formatRupiah(totalWD)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs border-t border-amber-200 pt-1 mt-1">
-                          <span className="text-slate-700 font-bold">Sisa Modal Aktif:</span>
-                          <span className="font-black text-emerald-700">{formatRupiah(sisaModal)}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penarikan</label>
-                    <input 
-                      type="date" 
-                      required 
-                      value={formWithdraw.tanggal} 
-                      onChange={(e) => setFormWithdraw({ ...formWithdraw, tanggal: e.target.value })} 
-                      className="w-full px-3 py-2 border rounded-lg text-sm bg-white" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Modal Ditarik (Rp)</label>
-                    <input 
-                      type="number" 
-                      required 
-                      placeholder="e.g. 10000000" 
-                      value={formWithdraw.jumlahTarik} 
-                      onChange={(e) => setFormWithdraw({ ...formWithdraw, jumlahTarik: e.target.value })} 
-                      className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-red-600 bg-white" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Alasan Penarikan</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Penarikan sebagian modal" 
-                      value={formWithdraw.catatan} 
-                      onChange={(e) => setFormWithdraw({ ...formWithdraw, catatan: e.target.value })} 
-                      className="w-full px-3 py-2 border rounded-lg text-sm bg-white" 
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    <button 
-                      type="button" 
-                      onClick={() => setSelectedPemodalWithdraw(null)} 
-                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-lg"
-                    >
-                      Batal
-                    </button>
-                    <button 
-                      type="submit" 
-                      disabled={loading} 
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2.5 rounded-lg shadow"
-                    >
-                      Konfirmasi Penarikan ➔
-                    </button>
-                  </div>
-                </form>
-              </div>
             </div>
           )}
 
@@ -1323,12 +1124,12 @@
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <span className="text-xs font-semibold text-slate-400 uppercase">Total Pengeluaran Kas</span>
                     <p className="text-2xl font-black text-red-600 mt-1">-{formatRupiah(totalKasKeluar)}</p>
-                    <span className="text-[11px] text-slate-500 mt-1 block">Beli/Olah/Jual + Penarikan Modal</span>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Modal Beli + Transport + Olah + Jual</span>
                   </div>
                   <div className="bg-slate-900 text-white p-5 rounded-xl shadow-md border border-slate-800">
                     <span className="text-xs font-semibold text-amber-400 uppercase">Saldo Kas Akhir (Net Cash)</span>
                     <p className="text-2xl font-black mt-1">{formatRupiah(saldoKasNet)}</p>
-                    <span className="text-[11px] text-slate-400 mt-1 block">(Modal + Omset) - Pengeluaran</span>
+                    <span className="text-[11px] text-slate-400 mt-1 block">(Modal Investor + Penjualan) - Pengeluaran</span>
                   </div>
                 </div>
 
@@ -1353,7 +1154,7 @@
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 && filteredWithdrawalList.length === 0 ? (
+                        {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 ? (
                           <tr>
                             <td colSpan="6" className="text-center py-6 text-slate-400">Belum ada data mutasi arus kas pada periode ini.</td>
                           </tr>
@@ -1365,22 +1166,12 @@
                               ...filteredPemodalList.map(p => ({
                                 type: 'PEMODAL',
                                 id: p.id,
-                                codeId: 'INV-SETOR',
+                                codeId: 'INV-MODAL',
                                 date: p.tanggalBergabung,
                                 title: `Investasi Setor Modal (${p.namaPemodal})`,
                                 subTitle: `Kontak: ${p.kontak}`,
                                 kasMasuk: p.jumlahModal,
                                 kasKeluar: 0
-                              })),
-                              ...filteredWithdrawalList.map(w => ({
-                                type: 'WITHDRAWAL',
-                                id: w.id,
-                                codeId: 'INV-TARIK',
-                                date: w.tanggal,
-                                title: `Penarikan Modal Investor (${w.namaPemodal})`,
-                                subTitle: `Catatan: ${w.catatan}`,
-                                kasMasuk: 0,
-                                kasKeluar: w.jumlahTarik
                               })),
                               ...neracaFilteredTransactions.map(t => ({
                                 type: 'TRANSAKSI',
@@ -1401,8 +1192,7 @@
                                 <tr key={item.id} className="hover:bg-slate-50">
                                   <td className="px-3 py-3 font-bold">
                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                      item.type === 'PEMODAL' ? 'bg-blue-100 text-blue-800' :
-                                      item.type === 'WITHDRAWAL' ? 'bg-red-100 text-red-800' : 'bg-slate-200 text-slate-800'
+                                      item.type === 'PEMODAL' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-800'
                                     }`}>
                                       {item.codeId}
                                     </span>
@@ -1513,9 +1303,9 @@
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <span className="text-xs font-semibold text-slate-400 uppercase">Modal Aktif (Net)</span>
-                    <p className="text-2xl font-black text-slate-800 mt-1">{formatRupiah(totalModalAktifNet)}</p>
-                    <span className="text-[11px] text-slate-500 mt-1 block">Setor: {formatRupiah(totalModalAwalSetor)} | Tarik: {formatRupiah(totalPenarikanModalAll)}</span>
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Modal Terkumpul</span>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{formatRupiah(totalModalInvestasi)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">{pemodalList.length} Investor Aktif</span>
                   </div>
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <span className="text-xs font-semibold text-slate-400 uppercase">Laba Terjual (Periode Ini)</span>
@@ -1538,7 +1328,7 @@
                   <div className="bg-slate-900 text-white p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                       <h2 className="text-lg font-bold">🤝 Input & Kelola Pemodal (Investor)</h2>
-                      <p className="text-xs text-slate-400 mt-1">Data pemodal, penarikan modal, & kalkulasi bagi hasil otomatis secara proporsional.</p>
+                      <p className="text-xs text-slate-400 mt-1">Data pemodal & kalkulasi pembagian hasil usaha otomatis secara proporsional.</p>
                     </div>
 
                     <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 flex items-center gap-3">
@@ -1591,7 +1381,7 @@
 
                   <div className="p-6 space-y-4">
                     <div className="flex justify-between items-center">
-                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tabel Rincian Pembagian Laba & Sisa Modal Investor</h3>
+                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tabel Rincian Pembagian Laba Per Pemodal</h3>
                       <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
                         Hitung By Penjualan: {pemodalFilterType === 'ALL' ? 'Semua Waktu' : pemodalFilterType === 'MONTH' ? `Bulan ${pemodalFilterMonth}` : `${pemodalStartDate || 'Awal'} s/d ${pemodalEndDate || 'Akhir'}`}
                       </span>
@@ -1602,30 +1392,24 @@
                         <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
                           <tr>
                             <th className="px-3 py-3">Nama Pemodal</th>
-                            <th className="px-3 py-3 text-right">Modal Awal</th>
-                            <th className="px-3 py-3 text-right text-red-400">Total Ditarik</th>
-                            <th className="px-3 py-3 text-right">Sisa Modal Aktif</th>
-                            <th className="px-3 py-3 text-center">Porsi (%)</th>
-                            <th className="px-3 py-3 text-right">Hak Laba (Rp)</th>
-                            <th className="px-3 py-3 text-right">Total Nilai Akhir</th>
+                            <th className="px-3 py-3">Tgl Masuk</th>
+                            <th className="px-3 py-3 text-right">Modal Disetor (Rp)</th>
+                            <th className="px-3 py-3 text-center">Porsi Modal (%)</th>
+                            <th className="px-3 py-3 text-right">Hak Laba Bersih (Rp)</th>
+                            <th className="px-3 py-3 text-right">Total Nilai Akhir (Rp)</th>
                             <th className="px-3 py-3 text-center">Aksi</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {pemodalList.length === 0 ? (
                             <tr>
-                              <td colSpan="8" className="text-center py-6 text-slate-400">Belum ada data pemodal tersimpan.</td>
+                              <td colSpan="7" className="text-center py-6 text-slate-400">Belum ada data pemodal tersimpan.</td>
                             </tr>
                           ) : (
                             pemodalList.map((p) => {
-                              const totalDitarik = withdrawalList
-                                .filter(w => w.pemodalId === p.id)
-                                .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
-                              
-                              const modalAktif = p.jumlahModal - totalDitarik;
-                              const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
+                              const porsiPct = totalModalInvestasi > 0 ? ((p.jumlahModal / totalModalInvestasi) * 100) : 0;
                               const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
-                              const totalNilaiAkhir = modalAktif + hakLabaNominal;
+                              const totalNilaiAkhir = p.jumlahModal + hakLabaNominal;
 
                               return (
                                 <tr key={p.id} className="hover:bg-slate-50">
@@ -1633,11 +1417,8 @@
                                     {p.namaPemodal}
                                     <span className="block text-[10px] text-slate-400 font-normal">📞 {p.kontak}</span>
                                   </td>
-                                  <td className="px-3 py-3 text-right font-mono text-slate-600">{formatRupiah(p.jumlahModal)}</td>
-                                  <td className="px-3 py-3 text-right font-mono font-bold text-red-600">
-                                    {totalDitarik > 0 ? `-${formatRupiah(totalDitarik)}` : '-'}
-                                  </td>
-                                  <td className="px-3 py-3 text-right font-mono font-bold text-slate-900 bg-slate-50/50">{formatRupiah(modalAktif)}</td>
+                                  <td className="px-3 py-3">{p.tanggalBergabung}</td>
+                                  <td className="px-3 py-3 text-right font-mono font-bold text-slate-700">{formatRupiah(p.jumlahModal)}</td>
                                   <td className="px-3 py-3 text-center">
                                     <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[11px]">
                                       {porsiPct.toFixed(2)}%
@@ -1650,16 +1431,7 @@
                                     {formatRupiah(totalNilaiAkhir)}
                                   </td>
                                   <td className="px-3 py-3 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <button 
-                                        onClick={() => setSelectedPemodalWithdraw(p)} 
-                                        title="Penarikan Modal"
-                                        className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1 rounded text-[10px] font-bold"
-                                      >
-                                        💸 Tarik Modal
-                                      </button>
-                                      <button onClick={() => handleDeletePemodal(p.id)} className="text-red-500 hover:text-red-700 font-bold text-xs">🗑️</button>
-                                    </div>
+                                    <button onClick={() => handleDeletePemodal(p.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️</button>
                                   </td>
                                 </tr>
                               );
@@ -1669,13 +1441,11 @@
                         {pemodalList.length > 0 && (
                           <tfoot className="bg-slate-100 font-bold text-slate-800 border-t-2 border-slate-300">
                             <tr>
-                              <td className="px-3 py-3 uppercase text-[10px]">Total Akumulasi:</td>
-                              <td className="px-3 py-3 text-right font-mono">{formatRupiah(totalModalAwalSetor)}</td>
-                              <td className="px-3 py-3 text-right font-mono text-red-600">-{formatRupiah(totalPenarikanModalAll)}</td>
-                              <td className="px-3 py-3 text-right font-mono text-slate-900">{formatRupiah(totalModalAktifNet)}</td>
+                              <td colSpan="2" className="px-3 py-3 text-right uppercase text-[10px]">Total Akumulasi:</td>
+                              <td className="px-3 py-3 text-right font-mono text-slate-900">{formatRupiah(totalModalInvestasi)}</td>
                               <td className="px-3 py-3 text-center">100%</td>
                               <td className="px-3 py-3 text-right font-mono text-emerald-600">+{formatRupiah(totalLabaUntukPemodal)}</td>
-                              <td className="px-3 py-3 text-right font-mono text-slate-900">{formatRupiah(totalModalAktifNet + totalLabaUntukPemodal)}</td>
+                              <td className="px-3 py-3 text-right font-mono text-slate-900">{formatRupiah(totalModalInvestasi + totalLabaUntukPemodal)}</td>
                               <td></td>
                             </tr>
                           </tfoot>
@@ -1683,43 +1453,6 @@
                       </table>
                     </div>
                   </div>
-
-                  {/* TABEL RIWAYAT PENARIKAN MODAL */}
-                  {withdrawalList.length > 0 && (
-                    <div className="p-6 border-t border-slate-200 bg-slate-50/50 space-y-3">
-                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                        📋 Riwayat Penarikan Modal Investor
-                      </h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs bg-white rounded-lg border border-slate-200">
-                          <thead className="bg-slate-800 text-white uppercase text-[10px] font-bold">
-                            <tr>
-                              <th className="px-3 py-2.5">Tanggal</th>
-                              <th className="px-3 py-2.5">Nama Investor</th>
-                              <th className="px-3 py-2.5 text-right text-red-400">Jumlah Tarik (Rp)</th>
-                              <th className="px-3 py-2.5">Catatan / Alasan</th>
-                              <th className="px-3 py-2.5 text-center">Aksi</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {withdrawalList.map((w) => (
-                              <tr key={w.id} className="hover:bg-slate-50">
-                                <td className="px-3 py-2.5 font-semibold text-slate-700">{w.tanggal}</td>
-                                <td className="px-3 py-2.5 font-bold text-slate-800">{w.namaPemodal}</td>
-                                <td className="px-3 py-2.5 text-right font-mono font-bold text-red-600">
-                                  -{formatRupiah(w.jumlahTarik)}
-                                </td>
-                                <td className="px-3 py-2.5 text-slate-500">{w.catatan}</td>
-                                <td className="px-3 py-2.5 text-center">
-                                  <button onClick={() => handleDeleteWithdrawal(w.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️</button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1758,4 +1491,398 @@
                       {categories.map((cat) => (
                         <div key={cat.id || cat.code} className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center shadow-sm hover:border-amber-400 transition">
                           <div>
-                            <span className="inline-block bg-amber-100 text-amber-800 font-black text-xs px-2 py
+                            <span className="inline-block bg-amber-100 text-amber-800 font-black text-xs px-2 py-0.5 rounded mr-2">[{cat.code}]</span>
+                            <span className="text-xs font-bold text-slate-800">{cat.name}</span>
+                          </div>
+                          {cat.id && (
+                            <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400 hover:text-red-600 font-bold text-xs">🗑️</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 1: PEMBELIAN */}
+            {activeTab === 'pengambilan' && (
+              <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-6">
+                  <h2 className="text-lg font-bold">📥 Input Pembelian Barang Mentah</h2>
+                </div>
+                <form onSubmit={handleSavePengambilan} className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Pengambilan</label>
+                      <input type="date" required value={formAmbil.tanggal} onChange={(e) => setFormAmbil({ ...formAmbil, tanggal: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Pengambil Barang (PIC)</label>
+                      <input type="text" required placeholder="e.g. Reva Surya" value={formAmbil.pengambilSelect} onChange={(e) => setFormAmbil({ ...formAmbil, pengambilSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-amber-700 bg-amber-50/50" />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">📍 Sumber & Lokasi Pengambilan</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Lokasi Pengambilan</label>
+                        <input type="text" required placeholder="e.g. PT Surya Jaya" value={formAmbil.tempatAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, tempatAmbil: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Daerah Pengambilan</label>
+                        <input type="text" required placeholder="e.g. Cikarang, Bekasi" value={formAmbil.lokasiAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, lokasiAmbil: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Kategori Jenis Barang</label>
+                    <select value={formAmbil.kategoriCode} onChange={(e) => setFormAmbil({ ...formAmbil, kategoriCode: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold text-slate-700">
+                      {categories.map((cat) => (
+                        <option key={cat.code} value={cat.code}>[{cat.code}] {cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Total Jumlah (Gram)</label>
+                      <input type="number" step="0.01" required value={formAmbil.jumlahKotor} onChange={(e) => setFormAmbil({ ...formAmbil, jumlahKotor: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Beli / Gram (Rp)</label>
+                      <input type="number" required value={formAmbil.hargaBeliSatuan} onChange={(e) => setFormAmbil({ ...formAmbil, hargaBeliSatuan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Transport (Rp)</label>
+                      <input type="number" placeholder="e.g. 50000" value={formAmbil.biayaTransport} onChange={(e) => setFormAmbil({ ...formAmbil, biayaTransport: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3 rounded-lg shadow">
+                    Simpan ke Firebase ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 2: PENGOLAHAN */}
+            {activeTab === 'pengolahan' && (
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-6">
+                  <h2 className="text-lg font-bold">🧪 Input Pengolahan & Pemurnian</h2>
+                </div>
+                <form onSubmit={handleSavePengolahan} className="p-6 space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                      Pilih Transaksi ({formOlah.selectedTrxIds.length} Dipilih)
+                    </label>
+                    {pendingOlahList.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center">
+                        Tidak ada antrean barang mentah yang belum diolah.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                        {pendingOlahList.map((t) => {
+                          const isChecked = formOlah.selectedTrxIds.includes(t.id);
+                          return (
+                            <label key={t.id} className={`flex items-center justify-between p-3 cursor-pointer transition ${isChecked ? 'bg-amber-50' : 'hover:bg-slate-50'}`}>
+                              <div className="flex items-center gap-3">
+                                <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectOlah(t.id)} className="w-4 h-4 text-amber-500 rounded" />
+                                <div>
+                                  <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
+                                  <p className="text-[11px] text-slate-500">📍 {t.tempatAmbil} | PIC Beli: {t.pengambil}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-mono font-bold text-xs text-slate-700">{t.jumlahKotor} Gram</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Pengolahan</label>
+                      <input type="date" required value={formOlah.tanggalOlah} onChange={(e) => setFormOlah({ ...formOlah, tanggalOlah: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">PIC Pengolah</label>
+                      <input type="text" required placeholder="e.g. Reva Surya" value={formOlah.pengolahSelect} onChange={(e) => setFormOlah({ ...formOlah, pengolahSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-700 bg-blue-50/50" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Hasil Pengolahan (Gram)</label>
+                      <input type="number" step="0.01" required value={formOlah.jumlahMurni} onChange={(e) => setFormOlah({ ...formOlah, jumlahMurni: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-700" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Pengolahan (Rp)</label>
+                      <input type="number" placeholder="e.g. 100000" value={formOlah.biayaOlah} onChange={(e) => setFormOlah({ ...formOlah, biayaOlah: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow">
+                    Simpan Pemurnian ke Firebase ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 3: PENJUALAN */}
+            {activeTab === 'penjualan' && (
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-6">
+                  <h2 className="text-lg font-bold">💰 Input Penjualan Perak Murni</h2>
+                  <p className="text-xs text-slate-400 mt-1">Petugas Penjual Otomatis: <span className="text-amber-400 font-bold">{currentUser.nama}</span></p>
+                </div>
+                <form onSubmit={handleSavePenjualan} className="p-6 space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                      Pilih Barang Siap Jual ({formJual.selectedTrxIds.length} Dipilih)
+                    </label>
+                    {pendingJualList.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center">
+                        Tidak ada barang hasil olahan yang belum dijual.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                        {pendingJualList.map((t) => {
+                          const isChecked = formJual.selectedTrxIds.includes(t.id);
+                          return (
+                            <label key={t.id} className={`flex items-center justify-between p-3 cursor-pointer transition ${isChecked ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}>
+                              <div className="flex items-center gap-3">
+                                <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectJual(t.id)} className="w-4 h-4 text-emerald-600 rounded" />
+                                <div>
+                                  <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
+                                  <p className="text-[11px] text-slate-500">PIC Beli: {t.pengambil} | Olah: {t.pengolah}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-mono font-bold text-xs text-blue-600">{t.jumlahMurni} Gram</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penjualan</label>
+                      <input type="date" required value={formJual.tanggalJual} onChange={(e) => setFormJual({ ...formJual, tanggalJual: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Jual / Gram (Rp)</label>
+                      <input type="number" required value={formJual.hargaJualSatuan} onChange={(e) => setFormJual({ ...formJual, hargaJualSatuan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-700" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Aktifitas Penjualan (Rp)</label>
+                    <input type="number" placeholder="e.g. 50000" value={formJual.biayaPenjualan} onChange={(e) => setFormJual({ ...formJual, biayaPenjualan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg shadow">
+                    Selesaikan Penjualan ke Firebase ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 4: LAPORAN & METRIK REALTIME */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm">🔍 Filter Laporan & Rekapitulasi</h3>
+                      <p className="text-xs text-slate-500">Filter berdasarkan kategori tanggal acuan dan rentang waktu.</p>
+                    </div>
+
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => setReportFilterBy('PEMBELIAN')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterBy === 'PEMBELIAN' ? 'bg-slate-900 text-amber-400 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        By Pembelian
+                      </button>
+                      <button
+                        onClick={() => setReportFilterBy('PENGOLAHAN')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterBy === 'PENGOLAHAN' ? 'bg-slate-900 text-blue-400 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        By Pengolahan
+                      </button>
+                      <button
+                        onClick={() => setReportFilterBy('PENJUALAN')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterBy === 'PENJUALAN' ? 'bg-slate-900 text-emerald-400 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        By Penjualan
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => setReportFilterType('ALL')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Semua Waktu
+                      </button>
+                      <button
+                        onClick={() => setReportFilterType('MONTH')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Per Bulan
+                      </button>
+                      <button
+                        onClick={() => setReportFilterType('RANGE')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Rentang Tanggal
+                      </button>
+                    </div>
+
+                    {reportFilterType === 'MONTH' && (
+                      <div className="flex items-center gap-2 bg-amber-50/50 p-2.5 rounded-lg border border-amber-200/60">
+                        <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Bulan:</label>
+                        <input
+                          type="month"
+                          value={reportFilterMonth}
+                          onChange={(e) => setReportFilterMonth(e.target.value)}
+                          className="px-2.5 py-1 border rounded-md text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                    )}
+
+                    {reportFilterType === 'RANGE' && (
+                      <div className="flex flex-wrap items-center gap-2 bg-amber-50/50 p-2.5 rounded-lg border border-amber-200/60">
+                        <input
+                          type="date"
+                          value={reportStartDate}
+                          onChange={(e) => setReportStartDate(e.target.value)}
+                          className="px-2 py-1 border rounded-md text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                        <span className="text-xs font-bold text-slate-400">s/d</span>
+                        <input
+                          type="date"
+                          value={reportEndDate}
+                          onChange={(e) => setReportEndDate(e.target.value)}
+                          className="px-2 py-1 border rounded-md text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Barang Mentah</span>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{totalBarangKotor.toFixed(2)} <span className="text-sm font-normal">Gram</span></p>
+                    <span className="text-xs text-slate-500 mt-1 block">Modal Beli: {formatRupiah(totalBeliModal)}</span>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Hasil Perak Murni</span>
+                    <p className="text-2xl font-black text-blue-600 mt-1">{totalPerakMurni.toFixed(2)} <span className="text-sm font-normal">Gram</span></p>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Omset Penjualan</span>
+                    <p className="text-2xl font-black text-emerald-600 mt-1">{formatRupiah(totalOmsetPenjualan)}</p>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Laba Bersih</span>
+                    <p className="text-2xl font-black text-amber-600 mt-1">{formatRupiah(totalLabaBersih)}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div>
+                      <h3 className="font-bold text-slate-800">Daftar Transaksi (Firebase Realtime Database)</h3>
+                      <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-1 inline-block">
+                        Filter Tanggal: By {reportFilterBy} ({reportFilterType === 'ALL' ? 'Semua Waktu' : reportFilterType === 'MONTH' ? `Bulan ${reportFilterMonth}` : `${reportStartDate || 'Awal'} s/d ${reportEndDate || 'Akhir'}`})
+                      </span>
+                    </div>
+                    <input type="text" placeholder="🔍 Cari..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="px-3 py-1.5 border rounded-lg text-xs" />
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
+                        <tr>
+                          <th className="px-3 py-3">Kode</th>
+                          <th className="px-3 py-3">Tgl Ambil</th>
+                          <th className="px-3 py-3">Tgl Olah</th>
+                          <th className="px-3 py-3">Tgl Jual</th>
+                          <th className="px-3 py-3">Deskripsi Brg</th>
+                          <th className="px-3 py-3">PIC Beli</th>
+                          <th className="px-3 py-3 text-right">Kotor (g)</th>
+                          <th className="px-3 py-3 text-right">Total Beli</th>
+                          <th className="px-3 py-3">PIC Olah</th>
+                          <th className="px-3 py-3 text-right">Murni (g)</th>
+                          <th className="px-3 py-3">PIC Jual</th>
+                          <th className="px-3 py-3 text-right">Total Jual</th>
+                          <th className="px-3 py-3 text-right">Laba Bersih</th>
+                          <th className="px-3 py-3 text-center">Status</th>
+                          <th className="px-3 py-3 text-center">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredTransactions.map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-50">
+                            <td className="px-3 py-3 font-bold">{t.codeId}</td>
+                            <td className="px-3 py-3">{t.tanggalAmbil}</td>
+                            <td className="px-3 py-3 text-blue-600 font-semibold">{t.tanggalOlah || '-'}</td>
+                            <td className="px-3 py-3 text-emerald-600 font-semibold">{t.tanggalPenjualan || '-'}</td>
+                            <td className="px-3 py-3">{t.kategoriName}</td>
+                            <td className="px-3 py-3 font-semibold text-amber-800">{t.pengambil}</td>
+                            <td className="px-3 py-3 text-right font-mono">{t.jumlahKotor}</td>
+                            <td className="px-3 py-3 text-right font-mono">{formatRupiah(t.totalBeli)}</td>
+                            <td className="px-3 py-3 font-semibold text-blue-800">{t.pengolah}</td>
+                            <td className="px-3 py-3 text-right font-mono text-blue-600 font-bold">{t.jumlahMurni}</td>
+                            <td className="px-3 py-3 font-semibold text-emerald-800">{t.tokoPembeli || '-'}</td>
+                            <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold">{formatRupiah(t.totalJual)}</td>
+                            <td className="px-3 py-3 text-right font-mono text-amber-600 font-bold">{formatRupiah(t.totalUntung)}</td>
+                            <td className="px-3 py-3 text-center">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">{t.status}</span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <button onClick={() => handleDeleteTransaction(t.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
