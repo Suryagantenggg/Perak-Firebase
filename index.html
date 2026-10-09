@@ -103,10 +103,18 @@
         return `${y}-${m}`;
       };
 
+      // STATE FILTER UNTUK TAB PEMODAL
       const [pemodalFilterType, setPemodalFilterType] = useState('ALL');
       const [pemodalFilterMonth, setPemodalFilterMonth] = useState(getCurrentMonthFormatted());
       const [pemodalStartDate, setPemodalStartDate] = useState('');
       const [pemodalEndDate, setPemodalEndDate] = useState('');
+
+      // STATE FILTER BARU UNTUK TAB LAPORAN
+      const [reportFilterBy, setReportFilterBy] = useState('PEMBELIAN'); // 'PEMBELIAN', 'PENGOLAHAN', 'PENJUALAN'
+      const [reportFilterType, setReportFilterType] = useState('ALL'); // 'ALL', 'MONTH', 'RANGE'
+      const [reportFilterMonth, setReportFilterMonth] = useState(getCurrentMonthFormatted());
+      const [reportStartDate, setReportStartDate] = useState('');
+      const [reportEndDate, setReportEndDate] = useState('');
 
       const [formPemodal, setFormPemodal] = useState({
         namaPemodal: '',
@@ -526,15 +534,41 @@
         }
       };
 
+      // FILTER TRANSAKSI UNTUK TAB LAPORAN
       const filteredTransactions = transactions.filter(t => {
+        // 1. FILTER BERDASARKAN KATA KUNCI PENCARIAN
         const term = searchTerm.toLowerCase();
-        return (
+        const matchSearch = (
           (t.codeId || '').toLowerCase().includes(term) ||
           (t.kategoriName || '').toLowerCase().includes(term) ||
           (t.pengambil || '').toLowerCase().includes(term) ||
           (t.tempatAmbil || '').toLowerCase().includes(term) ||
           (t.pengolah || '').toLowerCase().includes(term)
         );
+        if (!matchSearch) return false;
+
+        // 2. MENENTUKAN TANGGAL ACUAN FILTER (PEMBELIAN / PENGOLAHAN / PENJUALAN)
+        let targetDate = '';
+        if (reportFilterBy === 'PEMBELIAN') targetDate = t.tanggalAmbil;
+        else if (reportFilterBy === 'PENGOLAHAN') targetDate = t.tanggalOlah;
+        else if (reportFilterBy === 'PENJUALAN') targetDate = t.tanggalPenjualan;
+
+        if (!targetDate || targetDate === '-') {
+          if (reportFilterType !== 'ALL') return false; // Abaikan jika belum ada tanggal tapi filter aktif
+        }
+
+        // 3. FILTER TIPE (ALL, MONTH, RANGE)
+        if (reportFilterType === 'MONTH') {
+          if (!reportFilterMonth || !targetDate) return true;
+          return targetDate.startsWith(reportFilterMonth);
+        } else if (reportFilterType === 'RANGE') {
+          if (!targetDate) return false;
+          if (reportStartDate && targetDate < reportStartDate) return false;
+          if (reportEndDate && targetDate > reportEndDate) return false;
+          return true;
+        }
+
+        return true;
       });
 
       const totalBarangKotor = filteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
@@ -543,6 +577,7 @@
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
+      // FILTER TANGGAL UNTUK TAB PEMODAL
       const pemodalFilteredTransactions = transactions.filter(t => {
         if (t.status !== 'TERJUAL') return false;
         const tDate = t.tanggalPenjualan || t.tanggalAmbil;
@@ -560,7 +595,6 @@
       });
 
       const pemodalTotalLabaPeriod = pemodalFilteredTransactions.reduce((acc, t) => acc + (t.totalUntung || 0), 0);
-
       const totalModalInvestasi = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
       const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
       const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
@@ -1271,6 +1305,105 @@
             {/* TAB 4: LAPORAN & METRIK REALTIME */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
+                {/* PANEL MULTI-FILTER TANGGAL LAPORAN */}
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm">🔍 Filter Laporan & Rekapitulasi</h3>
+                      <p className="text-xs text-slate-500">Filter berdasarkan kategori tanggal acuan dan rentang waktu.</p>
+                    </div>
+
+                    {/* TIPE ACUAN TANGGAL */}
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => setReportFilterBy('PEMBELIAN')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterBy === 'PEMBELIAN' ? 'bg-slate-900 text-amber-400 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        By Pembelian
+                      </button>
+                      <button
+                        onClick={() => setReportFilterBy('PENGOLAHAN')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterBy === 'PENGOLAHAN' ? 'bg-slate-900 text-blue-400 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        By Pengolahan
+                      </button>
+                      <button
+                        onClick={() => setReportFilterBy('PENJUALAN')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterBy === 'PENJUALAN' ? 'bg-slate-900 text-emerald-400 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        By Penjualan
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    {/* MODE PERIODE WAKTU */}
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => setReportFilterType('ALL')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Semua Waktu
+                      </button>
+                      <button
+                        onClick={() => setReportFilterType('MONTH')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Per Bulan
+                      </button>
+                      <button
+                        onClick={() => setReportFilterType('RANGE')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          reportFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Rentang Tanggal
+                      </button>
+                    </div>
+
+                    {/* INPUT FILTER DINAMIS */}
+                    {reportFilterType === 'MONTH' && (
+                      <div className="flex items-center gap-2 bg-amber-50/50 p-2.5 rounded-lg border border-amber-200/60">
+                        <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Bulan:</label>
+                        <input
+                          type="month"
+                          value={reportFilterMonth}
+                          onChange={(e) => setReportFilterMonth(e.target.value)}
+                          className="px-2.5 py-1 border rounded-md text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                    )}
+
+                    {reportFilterType === 'RANGE' && (
+                      <div className="flex flex-wrap items-center gap-2 bg-amber-50/50 p-2.5 rounded-lg border border-amber-200/60">
+                        <input
+                          type="date"
+                          value={reportStartDate}
+                          onChange={(e) => setReportStartDate(e.target.value)}
+                          className="px-2 py-1 border rounded-md text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                        <span className="text-xs font-bold text-slate-400">s/d</span>
+                        <input
+                          type="date"
+                          value={reportEndDate}
+                          onChange={(e) => setReportEndDate(e.target.value)}
+                          className="px-2 py-1 border rounded-md text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <span className="text-xs font-semibold text-slate-400 uppercase">Total Barang Mentah</span>
@@ -1292,8 +1425,13 @@
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800">Daftar Transaksi (Firebase Realtime Database)</h3>
+                  <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div>
+                      <h3 className="font-bold text-slate-800">Daftar Transaksi (Firebase Realtime Database)</h3>
+                      <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-1 inline-block">
+                        Filter Tanggal: By {reportFilterBy} ({reportFilterType === 'ALL' ? 'Semua Waktu' : reportFilterType === 'MONTH' ? `Bulan ${reportFilterMonth}` : `${reportStartDate || 'Awal'} s/d ${reportEndDate || 'Akhir'}`})
+                      </span>
+                    </div>
                     <input type="text" placeholder="🔍 Cari..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="px-3 py-1.5 border rounded-lg text-xs" />
                   </div>
 
