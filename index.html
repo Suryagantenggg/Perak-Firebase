@@ -103,8 +103,8 @@
         return `${y}-${m}`;
       };
 
-      // STATE FILTER TANGGAL KHUSUS MENU PEMODAL (BY PENJUALAN)
-      const [pemodalFilterType, setPemodalFilterType] = useState('ALL'); // 'ALL', 'MONTH', 'RANGE'
+      // STATE FILTER TANGGAL KHUSUS MENU PEMODAL
+      const [pemodalFilterType, setPemodalFilterType] = useState('ALL');
       const [pemodalFilterMonth, setPemodalFilterMonth] = useState(getCurrentMonthFormatted());
       const [pemodalStartDate, setPemodalStartDate] = useState('');
       const [pemodalEndDate, setPemodalEndDate] = useState('');
@@ -115,6 +115,12 @@
       const [reportFilterMonth, setReportFilterMonth] = useState(getCurrentMonthFormatted());
       const [reportStartDate, setReportStartDate] = useState('');
       const [reportEndDate, setReportEndDate] = useState('');
+
+      // STATE FILTER UNTUK TAB NERACA KAS & SALDO
+      const [neracaFilterType, setNeracaFilterType] = useState('ALL'); // 'ALL', 'MONTH', 'RANGE'
+      const [neracaFilterMonth, setNeracaFilterMonth] = useState(getCurrentMonthFormatted());
+      const [neracaStartDate, setNeracaStartDate] = useState('');
+      const [neracaEndDate, setNeracaEndDate] = useState('');
 
       const [formPemodal, setFormPemodal] = useState({
         namaPemodal: '',
@@ -574,7 +580,7 @@
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
-      // FILTER KHUSUS PEMODAL DENGAN ACUAN TANGGAL PENJUALAN (BY PENJUALAN)
+      // FILTER KHUSUS PEMODAL DENGAN ACUAN TANGGAL PENJUALAN
       const pemodalFilteredTransactions = transactions.filter(t => {
         if (t.status !== 'TERJUAL') return false;
         const tJualDate = t.tanggalPenjualan;
@@ -589,13 +595,36 @@
           if (pemodalEndDate && tJualDate > pemodalEndDate) return false;
           return true;
         }
-        return true; // Mode 'ALL'
+        return true;
       });
 
       const pemodalTotalLabaPeriod = pemodalFilteredTransactions.reduce((acc, t) => acc + (t.totalUntung || 0), 0);
       const totalModalInvestasi = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
       const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
       const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
+
+      // KALKULASI ARUS KAS & SALDO UNTUK MENU NERACA KAS
+      const neracaFilteredTransactions = transactions.filter(t => {
+        const tDate = t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil;
+
+        if (neracaFilterType === 'MONTH') {
+          if (!neracaFilterMonth || !tDate) return true;
+          return tDate.startsWith(neracaFilterMonth);
+        } else if (neracaFilterType === 'RANGE') {
+          if (!tDate) return false;
+          if (neracaStartDate && tDate < neracaStartDate) return false;
+          if (neracaEndDate && tDate > neracaEndDate) return false;
+          return true;
+        }
+        return true;
+      });
+
+      // Menghitung Uang Masuk, Uang Keluar, dan Saldo Kas
+      const totalKasMasuk = neracaFilteredTransactions.reduce((acc, t) => acc + (t.totalJual || 0), 0);
+      const totalKasKeluar = neracaFilteredTransactions.reduce((acc, t) => {
+        return acc + (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0);
+      }, 0);
+      const saldoKasNet = totalKasMasuk - totalKasKeluar;
 
       const pendingOlahList = transactions.filter(t => t.status === 'MENUNGGU_OLAH');
       const pendingJualList = transactions.filter(t => t.status === 'SELESAI_OLAH');
@@ -802,6 +831,14 @@
                   💰 3. Input Penjualan ({pendingJualList.length})
                 </button>
                 <button
+                  onClick={() => setActiveTab('neraca')}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition ${
+                    activeTab === 'neraca' ? 'border-amber-500 text-amber-400 bg-slate-900/50' : 'border-transparent text-slate-300 hover:text-white'
+                  }`}
+                >
+                  💳 4. Neraca Kas & Saldo
+                </button>
+                <button
                   onClick={() => setActiveTab('pemodal')}
                   className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition ${
                     activeTab === 'pemodal' ? 'border-amber-500 text-amber-400 bg-slate-900/50' : 'border-transparent text-slate-300 hover:text-white'
@@ -830,10 +867,167 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-4 py-8">
+            {/* TAB NERACA KAS & SALDO */}
+            {activeTab === 'neraca' && (
+              <div className="max-w-5xl mx-auto space-y-6">
+                {/* PANEL FILTER PERIODE WAKTU KAS */}
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm">💳 Filter Arus Kas & Neraca Saldo</h3>
+                      <p className="text-xs text-slate-500">Pilih rentang waktu untuk memantau mutasi uang keluar, uang masuk, dan sisa saldo kas.</p>
+                    </div>
+
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => setNeracaFilterType('ALL')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          neracaFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Semua Waktu
+                      </button>
+                      <button
+                        onClick={() => setNeracaFilterType('MONTH')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          neracaFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Per Bulan
+                      </button>
+                      <button
+                        onClick={() => setNeracaFilterType('RANGE')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          neracaFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Rentang Tanggal
+                      </button>
+                    </div>
+                  </div>
+
+                  {neracaFilterType === 'MONTH' && (
+                    <div className="flex items-center gap-3 bg-amber-50/50 p-3 rounded-lg border border-amber-200/60 max-w-sm">
+                      <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Pilih Bulan:</label>
+                      <input
+                        type="month"
+                        value={neracaFilterMonth}
+                        onChange={(e) => setNeracaFilterMonth(e.target.value)}
+                        className="px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  )}
+
+                  {neracaFilterType === 'RANGE' && (
+                    <div className="flex flex-col sm:flex-row items-center gap-3 bg-amber-50/50 p-3 rounded-lg border border-amber-200/60">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-700">Dari Tanggal:</label>
+                        <input
+                          type="date"
+                          value={neracaStartDate}
+                          onChange={(e) => setNeracaStartDate(e.target.value)}
+                          className="px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-slate-400">s/d</span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-700">Sampai Tanggal:</label>
+                        <input
+                          type="date"
+                          value={neracaEndDate}
+                          onChange={(e) => setNeracaEndDate(e.target.value)}
+                          className="px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* RINGKASAN METRIK ARUS KAS */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Kas Masuk (Penjualan)</span>
+                    <p className="text-2xl font-black text-emerald-600 mt-1">+{formatRupiah(totalKasMasuk)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Dari transaksi terjual</span>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Kas Keluar (Pengeluaran)</span>
+                    <p className="text-2xl font-black text-red-600 mt-1">-{formatRupiah(totalKasKeluar)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Modal beli + Transport + Olah + Jual</span>
+                  </div>
+                  <div className="bg-slate-900 text-white p-5 rounded-xl shadow-md border border-slate-800">
+                    <span className="text-xs font-semibold text-amber-400 uppercase">Saldo Kas Saat Ini (Net Cash)</span>
+                    <p className="text-2xl font-black mt-1">{formatRupiah(saldoKasNet)}</p>
+                    <span className="text-[11px] text-slate-400 mt-1 block">Selisih Kas Masuk vs Kas Keluar</span>
+                  </div>
+                </div>
+
+                {/* TABEL MUTASI ARUS KAS (LEDGER) */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800">📖 Buku Mutasi Arus Kas & Saldo</h3>
+                    <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                      Periode: {neracaFilterType === 'ALL' ? 'Semua Waktu' : neracaFilterType === 'MONTH' ? `Bulan ${neracaFilterMonth}` : `${neracaStartDate || 'Awal'} s/d ${neracaEndDate || 'Akhir'}`}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
+                        <tr>
+                          <th className="px-3 py-3">Kode TRX</th>
+                          <th className="px-3 py-3">Tanggal</th>
+                          <th className="px-3 py-3">Keterangan / Kategori</th>
+                          <th className="px-3 py-3 text-right text-red-400">Kas Keluar (Rp)</th>
+                          <th className="px-3 py-3 text-right text-emerald-400">Kas Masuk (Rp)</th>
+                          <th className="px-3 py-3 text-right">Saldo (Rp)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {neracaFilteredTransactions.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" className="text-center py-6 text-slate-400">Belum ada data mutasi arus kas pada periode ini.</td>
+                          </tr>
+                        ) : (
+                          (() => {
+                            let runningBalance = 0;
+                            return neracaFilteredTransactions.map((t) => {
+                              const kasMasukItem = t.totalJual || 0;
+                              const kasKeluarItem = (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0);
+                              runningBalance += (kasMasukItem - kasKeluarItem);
+
+                              return (
+                                <tr key={t.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-3 font-bold">{t.codeId}</td>
+                                  <td className="px-3 py-3">{t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil}</td>
+                                  <td className="px-3 py-3">
+                                    <span className="font-bold text-slate-800">{t.kategoriName}</span>
+                                    <span className="block text-[10px] text-slate-400">PIC: {t.pengambil}</span>
+                                  </td>
+                                  <td className="px-3 py-3 text-right font-mono font-bold text-red-600">
+                                    {kasKeluarItem > 0 ? `-${formatRupiah(kasKeluarItem)}` : '-'}
+                                  </td>
+                                  <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600">
+                                    {kasMasukItem > 0 ? `+${formatRupiah(kasMasukItem)}` : '-'}
+                                  </td>
+                                  <td className="px-3 py-3 text-right font-mono font-black text-slate-800">
+                                    {formatRupiah(runningBalance)}
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })()
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* TAB INPUT PEMODAL & BAGI HASIL AUTOMATIS */}
             {activeTab === 'pemodal' && (
               <div className="max-w-5xl mx-auto space-y-6">
-                {/* PANEL FILTER KHUSUS MENU PEMODAL (BY PENJUALAN) */}
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
                     <div>
