@@ -157,6 +157,14 @@
         }, 100);
       }, []);
 
+      // SINKRONISASI NAMA LOGIN DENGAN FORM INPUT
+      useEffect(() => {
+        if (currentUser && currentUser.nama) {
+          setFormAmbil(prev => ({ ...prev, pengambilSelect: currentUser.nama }));
+          setFormOlah(prev => ({ ...prev, pengolahSelect: currentUser.nama }));
+        }
+      }, [currentUser]);
+
       useEffect(() => {
         if (!currentUser) return;
 
@@ -421,7 +429,7 @@
           await addDoc(collection(window.fbDb, "transactions"), payload);
           setLoading(false);
           showToast('🎉 Pembelian baru tersimpan di Firebase!');
-          setFormAmbil({ ...formAmbil, tempatAmbil: '', lokasiAmbil: '', jumlahKotor: '', hargaBeliSatuan: '', biayaTransport: '' });
+          setFormAmbil({ ...formAmbil, tempatAmbil: '', lokasiAmbil: '', jumlahKotor: '', hargaBeliSatuan: '', biayaTransport: '', pengambilSelect: currentUser ? currentUser.nama : '' });
           setActiveTab('dashboard');
         } catch (err) {
           setLoading(false);
@@ -475,7 +483,7 @@
 
           setLoading(false);
           showToast('🧪 Data Pemurnian berhasil di-update!');
-          setFormOlah({ selectedTrxIds: [], tanggalOlah: getTodayFormatted(), pengolahSelect: '', jumlahMurni: '', biayaOlah: '' });
+          setFormOlah({ selectedTrxIds: [], tanggalOlah: getTodayFormatted(), pengolahSelect: currentUser ? currentUser.nama : '', jumlahMurni: '', biayaOlah: '' });
           setActiveTab('dashboard');
         } catch (err) {
           setLoading(false);
@@ -508,7 +516,7 @@
               tanggalPenjualan: formJual.tanggalJual,
               jumlahJual: t.jumlahMurni,
               hargaJualSatuan: hargaJualVal,
-              tokoPembeli: currentUser.nama,
+              tokoPembeli: currentUser.nama, // OTOMATIS MENGIKUTI USER LOGIN
               biayaPenjualan: biayaPenjualanItem,
               totalUntung: totalUntungItem,
               status: 'TERJUAL'
@@ -548,7 +556,8 @@
           (t.kategoriName || '').toLowerCase().includes(term) ||
           (t.pengambil || '').toLowerCase().includes(term) ||
           (t.tempatAmbil || '').toLowerCase().includes(term) ||
-          (t.pengolah || '').toLowerCase().includes(term)
+          (t.pengolah || '').toLowerCase().includes(term) ||
+          (t.tokoPembeli || '').toLowerCase().includes(term)
         );
         if (!matchSearch) return false;
 
@@ -887,7 +896,6 @@
             {/* TAB NERACA KAS & SALDO DENGAN MODAL INVESTOR */}
             {activeTab === 'neraca' && (
               <div className="max-w-5xl mx-auto space-y-6">
-                {/* PANEL FILTER PERIODE WAKTU KAS */}
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
                     <div>
@@ -960,7 +968,6 @@
                   )}
                 </div>
 
-                {/* RINGKASAN METRIK ARUS KAS DENGAN MODAL PEMODAL */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <span className="text-xs font-semibold text-slate-400 uppercase">Modal Disetor Investor</span>
@@ -984,7 +991,6 @@
                   </div>
                 </div>
 
-                {/* TABEL MUTASI ARUS KAS (LEDGER) DENGAN PEMODAL */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="p-5 border-b border-slate-200 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800">📖 Buku Mutasi Arus Kas & Saldo Berjalan</h3>
@@ -1014,7 +1020,6 @@
                           (() => {
                             let runningBalance = 0;
 
-                            // Gabungkan data pemodal dan transaksi lalu urutkan kronologis
                             const combinedEvents = [
                               ...filteredPemodalList.map(p => ({
                                 type: 'PEMODAL',
@@ -1032,7 +1037,7 @@
                                 codeId: t.codeId,
                                 date: t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil,
                                 title: t.kategoriName,
-                                subTitle: `PIC: ${t.pengambil}`,
+                                subTitle: `PIC Beli: ${t.pengambil} | Olah: ${t.pengolah}`,
                                 kasMasuk: t.totalJual || 0,
                                 kasKeluar: (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0)
                               }))
@@ -1372,7 +1377,7 @@
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Pengambil Barang (PIC)</label>
-                      <input type="text" required placeholder="e.g. Andi" value={formAmbil.pengambilSelect} onChange={(e) => setFormAmbil({ ...formAmbil, pengambilSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                      <input type="text" required placeholder="e.g. Reva Surya" value={formAmbil.pengambilSelect} onChange={(e) => setFormAmbil({ ...formAmbil, pengambilSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-amber-700 bg-amber-50/50" />
                     </div>
                   </div>
 
@@ -1446,7 +1451,7 @@
                                 <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectOlah(t.id)} className="w-4 h-4 text-amber-500 rounded" />
                                 <div>
                                   <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
-                                  <p className="text-[11px] text-slate-500">📍 {t.tempatAmbil} | PIC: {t.pengambil}</p>
+                                  <p className="text-[11px] text-slate-500">📍 {t.tempatAmbil} | PIC Beli: {t.pengambil}</p>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -1466,7 +1471,7 @@
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">PIC Pengolah</label>
-                      <input type="text" required placeholder="e.g. Zaenal" value={formOlah.pengolahSelect} onChange={(e) => setFormOlah({ ...formOlah, pengolahSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                      <input type="text" required placeholder="e.g. Reva Surya" value={formOlah.pengolahSelect} onChange={(e) => setFormOlah({ ...formOlah, pengolahSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-700 bg-blue-50/50" />
                     </div>
                   </div>
 
@@ -1493,6 +1498,7 @@
               <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-6">
                   <h2 className="text-lg font-bold">💰 Input Penjualan Perak Murni</h2>
+                  <p className="text-xs text-slate-400 mt-1">Petugas Penjual Otomatis: <span className="text-amber-400 font-bold">{currentUser.nama}</span></p>
                 </div>
                 <form onSubmit={handleSavePenjualan} className="p-6 space-y-6">
                   <div>
@@ -1513,7 +1519,7 @@
                                 <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectJual(t.id)} className="w-4 h-4 text-emerald-600 rounded" />
                                 <div>
                                   <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
-                                  <p className="text-[11px] text-slate-500">Pengolah: {t.pengolah}</p>
+                                  <p className="text-[11px] text-slate-500">PIC Beli: {t.pengambil} | Olah: {t.pengolah}</p>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -1687,11 +1693,12 @@
                           <th className="px-3 py-3">Tgl Olah</th>
                           <th className="px-3 py-3">Tgl Jual</th>
                           <th className="px-3 py-3">Deskripsi Brg</th>
-                          <th className="px-3 py-3">PIC</th>
+                          <th className="px-3 py-3">PIC Beli</th>
                           <th className="px-3 py-3 text-right">Kotor (g)</th>
                           <th className="px-3 py-3 text-right">Total Beli</th>
                           <th className="px-3 py-3">PIC Olah</th>
                           <th className="px-3 py-3 text-right">Murni (g)</th>
+                          <th className="px-3 py-3">PIC Jual</th>
                           <th className="px-3 py-3 text-right">Total Jual</th>
                           <th className="px-3 py-3 text-right">Laba Bersih</th>
                           <th className="px-3 py-3 text-center">Status</th>
@@ -1706,11 +1713,12 @@
                             <td className="px-3 py-3 text-blue-600 font-semibold">{t.tanggalOlah || '-'}</td>
                             <td className="px-3 py-3 text-emerald-600 font-semibold">{t.tanggalPenjualan || '-'}</td>
                             <td className="px-3 py-3">{t.kategoriName}</td>
-                            <td className="px-3 py-3">{t.pengambil}</td>
+                            <td className="px-3 py-3 font-semibold text-amber-800">{t.pengambil}</td>
                             <td className="px-3 py-3 text-right font-mono">{t.jumlahKotor}</td>
                             <td className="px-3 py-3 text-right font-mono">{formatRupiah(t.totalBeli)}</td>
-                            <td className="px-3 py-3">{t.pengolah}</td>
+                            <td className="px-3 py-3 font-semibold text-blue-800">{t.pengolah}</td>
                             <td className="px-3 py-3 text-right font-mono text-blue-600 font-bold">{t.jumlahMurni}</td>
+                            <td className="px-3 py-3 font-semibold text-emerald-800">{t.tokoPembeli || '-'}</td>
                             <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold">{formatRupiah(t.totalJual)}</td>
                             <td className="px-3 py-3 text-right font-mono text-amber-600 font-bold">{formatRupiah(t.totalUntung)}</td>
                             <td className="px-3 py-3 text-center">
