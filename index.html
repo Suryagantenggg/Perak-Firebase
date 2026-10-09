@@ -442,7 +442,7 @@
         const nominal = parseFloat(formWithdraw.jumlahTarik) || 0;
         if (!selectedPemodalWithdraw || nominal <= 0) return alert('Nominal penarikan harus > 0!');
 
-        const totalTambahan = additionList
+        const totalTambah = additionList
           .filter(a => a.pemodalId === selectedPemodalWithdraw.id)
           .reduce((sum, a) => sum + (a.jumlahTambah || 0), 0);
 
@@ -450,7 +450,7 @@
           .filter(w => w.pemodalId === selectedPemodalWithdraw.id)
           .reduce((sum, w) => sum + (w.jumlahTarik || 0), 0);
 
-        const sisaModalMax = selectedPemodalWithdraw.jumlahModal + totalTambahan - existingWithdrawn;
+        const sisaModalMax = selectedPemodalWithdraw.jumlahModal + totalTambah - existingWithdrawn;
 
         if (nominal > sisaModalMax) {
           return alert(`Jumlah penarikan (Rp ${nominal.toLocaleString()}) melebihi sisa modal aktif (Rp ${sisaModalMax.toLocaleString()})!`);
@@ -828,6 +828,62 @@
       const totalBeliModal = filteredTransactions.reduce((acc, t) => acc + (t.totalBeli || 0), 0);
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
+
+      // AKUMULASI AKTIVITAS DAN BIAYA MASING-MASING USER
+      const userActivityStats = (() => {
+        const statsMap = {};
+
+        filteredTransactions.forEach(t => {
+          // 1. Aktivitas Pembelian (PIC Pengambil)
+          if (t.pengambil && t.pengambil !== '-') {
+            if (!statsMap[t.pengambil]) {
+              statsMap[t.pengambil] = {
+                nama: t.pengambil,
+                beliCount: 0, beliGram: 0, beliTotalModal: 0, beliTransport: 0,
+                olahCount: 0, olahMurniGram: 0, olahBiaya: 0,
+                jualCount: 0, jualMurniGram: 0, jualOmset: 0, jualBiaya: 0
+              };
+            }
+            statsMap[t.pengambil].beliCount += 1;
+            statsMap[t.pengambil].beliGram += (t.jumlahKotor || 0);
+            statsMap[t.pengambil].beliTotalModal += (t.totalBeli || 0);
+            statsMap[t.pengambil].beliTransport += (t.biayaTransport || 0);
+          }
+
+          // 2. Aktivitas Pengolahan (PIC Pengolah)
+          if (t.pengolah && t.pengolah !== '-') {
+            if (!statsMap[t.pengolah]) {
+              statsMap[t.pengolah] = {
+                nama: t.pengolah,
+                beliCount: 0, beliGram: 0, beliTotalModal: 0, beliTransport: 0,
+                olahCount: 0, olahMurniGram: 0, olahBiaya: 0,
+                jualCount: 0, jualMurniGram: 0, jualOmset: 0, jualBiaya: 0
+              };
+            }
+            statsMap[t.pengolah].olahCount += 1;
+            statsMap[t.pengolah].olahMurniGram += (t.jumlahMurni || 0);
+            statsMap[t.pengolah].olahBiaya += (t.biayaOlah || 0);
+          }
+
+          // 3. Aktivitas Penjualan (PIC Penjual / Toko Pembeli)
+          if (t.tokoPembeli && t.tokoPembeli !== '-' && t.status === 'TERJUAL') {
+            if (!statsMap[t.tokoPembeli]) {
+              statsMap[t.tokoPembeli] = {
+                nama: t.tokoPembeli,
+                beliCount: 0, beliGram: 0, beliTotalModal: 0, beliTransport: 0,
+                olahCount: 0, olahMurniGram: 0, olahBiaya: 0,
+                jualCount: 0, jualMurniGram: 0, jualOmset: 0, jualBiaya: 0
+              };
+            }
+            statsMap[t.tokoPembeli].jualCount += 1;
+            statsMap[t.tokoPembeli].jualMurniGram += (t.jumlahMurni || 0);
+            statsMap[t.tokoPembeli].jualOmset += (t.totalJual || 0);
+            statsMap[t.tokoPembeli].jualBiaya += (t.biayaPenjualan || 0);
+          }
+        });
+
+        return Object.values(statsMap);
+      })();
 
       // FILTER KHUSUS PEMODAL DENGAN ACUAN TANGGAL PENJUALAN
       const pemodalFilteredTransactions = transactions.filter(t => {
@@ -2243,6 +2299,94 @@
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Laba Bersih</span>
                     <p className="text-base sm:text-2xl font-black text-amber-600 mt-0.5">{formatRupiah(totalLabaBersih)}</p>
+                  </div>
+                </div>
+
+                {/* RINGKASAN AKTIVITAS BIAYA SEKERJA MASING-MASING USER */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 bg-slate-900 text-white">
+                    <h3 className="font-bold text-xs sm:text-sm text-amber-400">👤 Ringkasan Aktivitas & Biaya Per User / PIC</h3>
+                    <p className="text-[10px] text-slate-300 mt-0.5">Rincian beban biaya pembelian, pengolahan, dan omset penjualan per petugas.</p>
+                  </div>
+
+                  <div className="p-3 sm:p-5 space-y-3">
+                    {userActivityStats.length === 0 ? (
+                      <p className="text-center py-4 text-xs text-slate-400">Belum ada data aktivitas user pada periode ini.</p>
+                    ) : (
+                      userActivityStats.map((u, idx) => {
+                        const totalBiayaUserBeli = u.beliTotalModal + u.beliTransport;
+
+                        return (
+                          <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                              <span className="font-bold text-sm text-slate-900">👤 {u.nama}</span>
+                              <span className="text-[10px] bg-slate-200 text-slate-700 font-extrabold px-2 py-0.5 rounded-full">
+                                Active User
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              {/* AKSI PEMBELIAN */}
+                              <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80 space-y-1">
+                                <span className="font-bold text-[11px] text-amber-900 block border-b border-amber-200/60 pb-1">
+                                  📥 Pembelian ({u.beliCount} Trx)
+                                </span>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Volume Kotor:</span>
+                                  <span className="font-bold text-slate-800 font-mono">{u.beliGram.toFixed(2)}g</span>
+                                </div>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Modal Beli:</span>
+                                  <span className="font-bold text-slate-800 font-mono">{formatRupiah(u.beliTotalModal)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Biaya Transport:</span>
+                                  <span className="font-bold text-slate-800 font-mono">{formatRupiah(u.beliTransport)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] border-t border-amber-200/80 pt-1 mt-1">
+                                  <span className="font-bold text-amber-950">Total Biaya Beli:</span>
+                                  <span className="font-black text-amber-900 font-mono">{formatRupiah(totalBiayaUserBeli)}</span>
+                                </div>
+                              </div>
+
+                              {/* AKSI PENGOLAHAN */}
+                              <div className="bg-blue-50/70 p-2.5 rounded-xl border border-blue-200/80 space-y-1">
+                                <span className="font-bold text-[11px] text-blue-900 block border-b border-blue-200/60 pb-1">
+                                  🧪 Pemurnian ({u.olahCount} Trx)
+                                </span>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Hasil Murni:</span>
+                                  <span className="font-bold text-blue-800 font-mono">{u.olahMurniGram.toFixed(2)}g</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] border-t border-blue-200/80 pt-1 mt-1">
+                                  <span className="font-bold text-blue-950">Biaya Pengolahan:</span>
+                                  <span className="font-black text-blue-900 font-mono">{formatRupiah(u.olahBiaya)}</span>
+                                </div>
+                              </div>
+
+                              {/* AKSI PENJUALAN */}
+                              <div className="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200/80 space-y-1">
+                                <span className="font-bold text-[11px] text-emerald-900 block border-b border-emerald-200/60 pb-1">
+                                  💰 Penjualan ({u.jualCount} Trx)
+                                </span>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Murni Terjual:</span>
+                                  <span className="font-bold text-emerald-800 font-mono">{u.jualMurniGram.toFixed(2)}g</span>
+                                </div>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Biaya Penjualan:</span>
+                                  <span className="font-bold text-red-600 font-mono">{formatRupiah(u.jualBiaya)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] border-t border-emerald-200/80 pt-1 mt-1">
+                                  <span className="font-bold text-emerald-950">Total Omset Jual:</span>
+                                  <span className="font-black text-emerald-900 font-mono">{formatRupiah(u.jualOmset)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 
