@@ -16,13 +16,13 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { 
-      getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot 
+      getFirestore, collection, addDoc, getDocs, doc, setDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { 
       getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-    // KONFIGURASI FIREBASE PROJECT BARU ANDA
+    // KONFIGURASI FIREBASE PROJECT
     const firebaseConfig = {
       apiKey: "AIzaSyDs8_zsiK6lbZa_8Jva5t0CoYbgT3rVHSw",
       authDomain: "refining-perak-app.firebaseapp.com",
@@ -33,16 +33,14 @@
       measurementId: "G-54H37SLNPY"
     };
 
-    // Inisialisasi Firebase App, Firestore, & Auth
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    // Ekspor Layanan Firebase ke Global Window agar bisa diakses React
     window.fbDb = db;
     window.fbAuth = auth;
     window.fbFS = {
-      collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot,
+      collection, addDoc, getDocs, doc, setDoc, updateDoc, deleteDoc, query, orderBy, onSnapshot,
       signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged
     };
   </script>
@@ -71,6 +69,7 @@
       const [signupNama, setSignupNama] = useState('');
       const [signupEmail, setSignupEmail] = useState('');
       const [signupPassword, setSignupPassword] = useState('');
+      const [signupRole, setSignupRole] = useState('Admin'); // Default role Pendaftaran Admin
 
       const [authError, setAuthError] = useState('');
       const [authSuccess, setAuthSuccess] = useState('');
@@ -81,19 +80,18 @@
       const [toastMsg, setToastMsg] = useState('');
 
       const [transactions, setTransactions] = useState([]);
-      const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+      const [categories, setCategories] = useState([]);
 
-      // FILTER PERIODE TANGGAL
-      const [dateFilterType, setDateFilterType] = useState('PEMBELIAN');
-      const [startDate, setStartDate] = useState('');
-      const [endDate, setEndDate] = useState('');
+      // KATEGORI FORM BARU
+      const [newCatCode, setNewCatCode] = useState('');
+      const [newCatName, setNewCatName] = useState('');
 
       const showToast = (msg) => {
         setToastMsg(msg);
         setTimeout(() => setToastMsg(''), 4000);
       };
 
-      // MONITORING AUTHENTICATION STATE DARI FIREBASE
+      // MONITORING AUTHENTICATION & USER PROFILE
       useEffect(() => {
         const checkFB = setInterval(() => {
           if (window.fbAuth) {
@@ -106,7 +104,7 @@
                   uid: user.uid,
                   nama: displayName,
                   email: user.email,
-                  role: user.email.includes('admin') ? 'Admin' : 'Petugas'
+                  role: 'Admin' // Diatur sebagai Admin untuk mengelola Kategori & Transaksi
                 };
                 setCurrentUser(userObj);
               } else {
@@ -116,6 +114,36 @@
           }
         }, 100);
       }, []);
+
+      // SINKRONISASI REALTIME KATEGORI DARI FIRESTORE DATABASE
+      useEffect(() => {
+        if (!currentUser) return;
+
+        const checkCat = setInterval(() => {
+          if (window.fbDb) {
+            clearInterval(checkCat);
+            const { collection, query, orderBy, onSnapshot } = window.fbFS;
+            const q = query(collection(window.fbDb, "categories"), orderBy("code", "asc"));
+
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+              const list = [];
+              snapshot.forEach((doc) => {
+                list.push({ id: doc.id, ...doc.data() });
+              });
+              if (list.length === 0) {
+                setCategories(DEFAULT_CATEGORIES);
+              } else {
+                setCategories(list);
+              }
+            }, (error) => {
+              console.error("Categories error:", error);
+              setCategories(DEFAULT_CATEGORIES);
+            });
+
+            return () => unsubscribe();
+          }
+        }, 100);
+      }, [currentUser]);
 
       // SINKRONISASI REALTIME TRANSAKSI DARI FIRESTORE DATABASE
       useEffect(() => {
@@ -171,11 +199,19 @@
         setAuthError('');
 
         try {
-          const { createUserWithEmailAndPassword } = window.fbFS;
-          await createUserWithEmailAndPassword(window.fbAuth, signupEmail.trim(), signupPassword.trim());
+          const { createUserWithEmailAndPassword, doc, setDoc } = window.fbFS;
+          const userCred = await createUserWithEmailAndPassword(window.fbAuth, signupEmail.trim(), signupPassword.trim());
           
+          // Simpan Data User ke Koleksi "users" di Firestore
+          await setDoc(doc(window.fbDb, "users", userCred.user.uid), {
+            nama: signupNama.trim(),
+            email: signupEmail.trim(),
+            role: signupRole,
+            createdAt: Date.now()
+          });
+
           setLoading(false);
-          setAuthSuccess('🎉 Akun berhasil dibuat! Silakan masuk.');
+          setAuthSuccess('🎉 Akun Admin berhasil dibuat! Silakan masuk.');
           setLoginEmail(signupEmail.trim());
           setSignupNama('');
           setSignupEmail('');
@@ -192,6 +228,45 @@
           const { signOut } = window.fbFS;
           await signOut(window.fbAuth);
           setCurrentUser(null);
+        }
+      };
+
+      // MENAMBAH KATEGORI BARU KE FIRESTORE
+      const handleAddCategory = async (e) => {
+        e.preventDefault();
+        if (!newCatCode.trim() || !newCatName.trim()) return alert('Kode dan Nama Kategori harus diisi!');
+
+        setLoading(true);
+        try {
+          const { collection, addDoc } = window.fbFS;
+          await addDoc(collection(window.fbDb, "categories"), {
+            code: newCatCode.trim().toUpperCase(),
+            name: newCatName.trim(),
+            createdAt: Date.now()
+          });
+          setLoading(false);
+          showToast('✅ Kategori baru berhasil ditambahkan!');
+          setNewCatCode('');
+          setNewCatName('');
+        } catch (err) {
+          setLoading(false);
+          alert('Gagal menambah kategori: ' + err.message);
+        }
+      };
+
+      // MENGHAPUS KATEGORI DARI FIRESTORE
+      const handleDeleteCategory = async (id) => {
+        if (window.confirm('Hapus kategori barang ini?')) {
+          setLoading(true);
+          try {
+            const { doc, deleteDoc } = window.fbFS;
+            await deleteDoc(doc(window.fbDb, "categories", id));
+            setLoading(false);
+            showToast('🗑️ Kategori dihapus!');
+          } catch (err) {
+            setLoading(false);
+            alert('Gagal menghapus kategori!');
+          }
         }
       };
 
@@ -234,7 +309,6 @@
         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
       };
 
-      // INPUT PEMBELIAN BARU KE FIRESTORE
       const handleSavePengambilan = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -242,7 +316,7 @@
         const kotor = parseFloat(formAmbil.jumlahKotor) || 0;
         const hargaBeli = parseFloat(formAmbil.hargaBeliSatuan) || 0;
         const transport = parseFloat(formAmbil.biayaTransport) || 0;
-        const selectedCat = categories.find(c => c.code === formAmbil.kategoriCode) || categories[0];
+        const selectedCat = categories.find(c => c.code === formAmbil.kategoriCode) || categories[0] || { code: 'A', name: 'Umum' };
 
         const payload = {
           codeId: 'TRX-' + Math.floor(1000 + Math.random() * 9000),
@@ -297,12 +371,10 @@
 
       const selectedTrxOlahList = transactions.filter(t => formOlah.selectedTrxIds.includes(t.id));
       const totalKotorSelected = selectedTrxOlahList.reduce((sum, t) => sum + t.jumlahKotor, 0);
-      const totalModalSelected = selectedTrxOlahList.reduce((sum, t) => sum + t.totalBeli, 0);
 
       const murniVal = parseFloat(formOlah.jumlahMurni) || 0;
       const totalBiayaOlahVal = parseFloat(formOlah.biayaOlah) || 0;
 
-      // SIMPAN PENGOLAHAN KE FIRESTORE
       const handleSavePengolahan = async (e) => {
         e.preventDefault();
         if (formOlah.selectedTrxIds.length === 0) return alert('Pilih minimal 1 transaksi!');
@@ -344,7 +416,6 @@
       const hargaJualVal = parseFloat(formJual.hargaJualSatuan) || 0;
       const totalBiayaPenjualanVal = parseFloat(formJual.biayaPenjualan) || 0;
 
-      // SIMPAN PENJUALAN KE FIRESTORE
       const handleSavePenjualan = async (e) => {
         e.preventDefault();
         if (formJual.selectedTrxIds.length === 0) return alert('Pilih minimal 1 barang!');
@@ -398,19 +469,7 @@
         }
       };
 
-      const dateFilteredTransactions = transactions.filter(t => {
-        let tDate = '';
-        if (dateFilterType === 'PEMBELIAN') tDate = t.tanggalAmbil;
-        else if (dateFilterType === 'PENGOLAHAN') tDate = t.tanggalOlah;
-        else if (dateFilterType === 'PENJUALAN') tDate = t.tanggalPenjualan;
-
-        if (!tDate) return (!startDate && !endDate);
-        if (startDate && tDate < startDate) return false;
-        if (endDate && tDate > endDate) return false;
-        return true;
-      });
-
-      const filteredTransactions = dateFilteredTransactions.filter(t => {
+      const filteredTransactions = transactions.filter(t => {
         const term = searchTerm.toLowerCase();
         return (
           (t.codeId || '').toLowerCase().includes(term) ||
@@ -540,6 +599,17 @@
                       className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Role Akun</label>
+                    <select 
+                      value={signupRole} 
+                      onChange={(e) => setSignupRole(e.target.value)}
+                      className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none bg-white font-bold text-amber-600"
+                    >
+                      <option value="Admin">Admin (Akses Penuh + Kelola Kategori)</option>
+                      <option value="Petugas">Petugas (Input Transaksi)</option>
+                    </select>
+                  </div>
                   <button
                     type="submit"
                     disabled={loading}
@@ -621,6 +691,14 @@
                   💰 3. Input Penjualan ({pendingJualList.length})
                 </button>
                 <button
+                  onClick={() => setActiveTab('categories')}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition ${
+                    activeTab === 'categories' ? 'border-amber-500 text-amber-400 bg-slate-900/50' : 'border-transparent text-slate-300 hover:text-white'
+                  }`}
+                >
+                  ⚙️ Master Kategori ({categories.length})
+                </button>
+                <button
                   onClick={() => setActiveTab('dashboard')}
                   className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition ${
                     activeTab === 'dashboard' ? 'border-amber-500 text-amber-400 bg-slate-900/50' : 'border-transparent text-slate-300 hover:text-white'
@@ -633,6 +711,54 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-4 py-8">
+            {/* TAB MASTER KATEGORI BARANG */}
+            {activeTab === 'categories' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-6">
+                    <h2 className="text-lg font-bold">⚙️ Kelola Master Kategori Barang (Firestore)</h2>
+                    <p className="text-xs text-slate-400 mt-1">Tambah atau hapus jenis kategori barang perak di sini.</p>
+                  </div>
+                  
+                  <form onSubmit={handleAddCategory} className="p-6 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase mb-3">Tambah Kategori Baru</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Kode (A-Z)</label>
+                        <input type="text" required placeholder="e.g. I" value={newCatCode} onChange={(e) => setNewCatCode(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm uppercase bg-white font-bold" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Kategori</label>
+                        <input type="text" required placeholder="e.g. Perak Murni Batangan" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="flex items-end">
+                        <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-2.5 rounded-lg shadow">
+                          + Tambah Kategori
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+
+                  <div className="p-6">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase mb-3">Daftar Kategori Aktif</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {categories.map((cat) => (
+                        <div key={cat.id || cat.code} className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center shadow-sm hover:border-amber-400 transition">
+                          <div>
+                            <span className="inline-block bg-amber-100 text-amber-800 font-black text-xs px-2 py-0.5 rounded mr-2">[{cat.code}]</span>
+                            <span className="text-xs font-bold text-slate-800">{cat.name}</span>
+                          </div>
+                          {cat.id && (
+                            <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400 hover:text-red-600 font-bold text-xs">🗑️</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* TAB 1: PEMBELIAN */}
             {activeTab === 'pengambilan' && (
               <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
@@ -667,7 +793,7 @@
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Kategori Jenis Barang</label>
-                    <select value={formAmbil.kategoriCode} onChange={(e) => setFormAmbil({ ...formAmbil, kategoriCode: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                    <select value={formAmbil.kategoriCode} onChange={(e) => setFormAmbil({ ...formAmbil, kategoriCode: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold text-slate-700">
                       {categories.map((cat) => (
                         <option key={cat.code} value={cat.code}>[{cat.code}] {cat.name}</option>
                       ))}
