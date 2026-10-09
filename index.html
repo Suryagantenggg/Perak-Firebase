@@ -117,7 +117,7 @@
       const [reportEndDate, setReportEndDate] = useState('');
 
       // STATE FILTER UNTUK TAB NERACA KAS & SALDO
-      const [neracaFilterType, setNeracaFilterType] = useState('ALL'); // 'ALL', 'MONTH', 'RANGE'
+      const [neracaFilterType, setNeracaFilterType] = useState('ALL');
       const [neracaFilterMonth, setNeracaFilterMonth] = useState(getCurrentMonthFormatted());
       const [neracaStartDate, setNeracaStartDate] = useState('');
       const [neracaEndDate, setNeracaEndDate] = useState('');
@@ -603,7 +603,7 @@
       const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
       const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
 
-      // KALKULASI ARUS KAS & SALDO UNTUK MENU NERACA KAS
+      // KALKULASI ARUS KAS & NERACA DENGAN MENYERTAKAN MODAL INVESTOR
       const neracaFilteredTransactions = transactions.filter(t => {
         const tDate = t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil;
 
@@ -619,12 +619,29 @@
         return true;
       });
 
-      // Menghitung Uang Masuk, Uang Keluar, dan Saldo Kas
-      const totalKasMasuk = neracaFilteredTransactions.reduce((acc, t) => acc + (t.totalJual || 0), 0);
+      const filteredPemodalList = pemodalList.filter(p => {
+        const pDate = p.tanggalBergabung;
+        if (neracaFilterType === 'MONTH') {
+          if (!neracaFilterMonth || !pDate) return true;
+          return pDate.startsWith(neracaFilterMonth);
+        } else if (neracaFilterType === 'RANGE') {
+          if (!pDate) return false;
+          if (neracaStartDate && pDate < neracaStartDate) return false;
+          if (neracaEndDate && pDate > neracaEndDate) return false;
+          return true;
+        }
+        return true;
+      });
+
+      const totalModalInvestorPeriod = filteredPemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
+      const totalKasMasukPenjualan = neracaFilteredTransactions.reduce((acc, t) => acc + (t.totalJual || 0), 0);
+      const totalKasMasukKeseluruhan = totalModalInvestorPeriod + totalKasMasukPenjualan;
+
       const totalKasKeluar = neracaFilteredTransactions.reduce((acc, t) => {
         return acc + (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0);
       }, 0);
-      const saldoKasNet = totalKasMasuk - totalKasKeluar;
+
+      const saldoKasNet = totalKasMasukKeseluruhan - totalKasKeluar;
 
       const pendingOlahList = transactions.filter(t => t.status === 'MENUNGGU_OLAH');
       const pendingJualList = transactions.filter(t => t.status === 'SELESAI_OLAH');
@@ -867,7 +884,7 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-4 py-8">
-            {/* TAB NERACA KAS & SALDO */}
+            {/* TAB NERACA KAS & SALDO DENGAN MODAL INVESTOR */}
             {activeTab === 'neraca' && (
               <div className="max-w-5xl mx-auto space-y-6">
                 {/* PANEL FILTER PERIODE WAKTU KAS */}
@@ -943,29 +960,34 @@
                   )}
                 </div>
 
-                {/* RINGKASAN METRIK ARUS KAS */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* RINGKASAN METRIK ARUS KAS DENGAN MODAL PEMODAL */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Kas Masuk (Penjualan)</span>
-                    <p className="text-2xl font-black text-emerald-600 mt-1">+{formatRupiah(totalKasMasuk)}</p>
-                    <span className="text-[11px] text-slate-500 mt-1 block">Dari transaksi terjual</span>
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Modal Disetor Investor</span>
+                    <p className="text-2xl font-black text-blue-600 mt-1">+{formatRupiah(totalModalInvestorPeriod)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Dari {filteredPemodalList.length} Investor</span>
                   </div>
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Kas Keluar (Pengeluaran)</span>
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Kas Masuk Penjualan</span>
+                    <p className="text-2xl font-black text-emerald-600 mt-1">+{formatRupiah(totalKasMasukPenjualan)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Omset penjualan teralisasi</span>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Pengeluaran Kas</span>
                     <p className="text-2xl font-black text-red-600 mt-1">-{formatRupiah(totalKasKeluar)}</p>
-                    <span className="text-[11px] text-slate-500 mt-1 block">Modal beli + Transport + Olah + Jual</span>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Modal Beli + Transport + Olah + Jual</span>
                   </div>
                   <div className="bg-slate-900 text-white p-5 rounded-xl shadow-md border border-slate-800">
-                    <span className="text-xs font-semibold text-amber-400 uppercase">Saldo Kas Saat Ini (Net Cash)</span>
+                    <span className="text-xs font-semibold text-amber-400 uppercase">Saldo Kas Akhir (Net Cash)</span>
                     <p className="text-2xl font-black mt-1">{formatRupiah(saldoKasNet)}</p>
-                    <span className="text-[11px] text-slate-400 mt-1 block">Selisih Kas Masuk vs Kas Keluar</span>
+                    <span className="text-[11px] text-slate-400 mt-1 block">(Modal Investor + Penjualan) - Pengeluaran</span>
                   </div>
                 </div>
 
-                {/* TABEL MUTASI ARUS KAS (LEDGER) */}
+                {/* TABEL MUTASI ARUS KAS (LEDGER) DENGAN PEMODAL */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="p-5 border-b border-slate-200 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800">📖 Buku Mutasi Arus Kas & Saldo</h3>
+                    <h3 className="font-bold text-slate-800">📖 Buku Mutasi Arus Kas & Saldo Berjalan</h3>
                     <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
                       Periode: {neracaFilterType === 'ALL' ? 'Semua Waktu' : neracaFilterType === 'MONTH' ? `Bulan ${neracaFilterMonth}` : `${neracaStartDate || 'Awal'} s/d ${neracaEndDate || 'Akhir'}`}
                     </span>
@@ -975,40 +997,69 @@
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
                         <tr>
-                          <th className="px-3 py-3">Kode TRX</th>
+                          <th className="px-3 py-3">Kode / ID</th>
                           <th className="px-3 py-3">Tanggal</th>
-                          <th className="px-3 py-3">Keterangan / Kategori</th>
+                          <th className="px-3 py-3">Keterangan / Sumber Transaksi</th>
                           <th className="px-3 py-3 text-right text-red-400">Kas Keluar (Rp)</th>
                           <th className="px-3 py-3 text-right text-emerald-400">Kas Masuk (Rp)</th>
-                          <th className="px-3 py-3 text-right">Saldo (Rp)</th>
+                          <th className="px-3 py-3 text-right">Saldo Kas (Rp)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {neracaFilteredTransactions.length === 0 ? (
+                        {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 ? (
                           <tr>
                             <td colSpan="6" className="text-center py-6 text-slate-400">Belum ada data mutasi arus kas pada periode ini.</td>
                           </tr>
                         ) : (
                           (() => {
                             let runningBalance = 0;
-                            return neracaFilteredTransactions.map((t) => {
-                              const kasMasukItem = t.totalJual || 0;
-                              const kasKeluarItem = (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0);
-                              runningBalance += (kasMasukItem - kasKeluarItem);
+
+                            // Gabungkan data pemodal dan transaksi lalu urutkan kronologis
+                            const combinedEvents = [
+                              ...filteredPemodalList.map(p => ({
+                                type: 'PEMODAL',
+                                id: p.id,
+                                codeId: 'INV-MODAL',
+                                date: p.tanggalBergabung,
+                                title: `Investasi Setor Modal (${p.namaPemodal})`,
+                                subTitle: `Kontak: ${p.kontak}`,
+                                kasMasuk: p.jumlahModal,
+                                kasKeluar: 0
+                              })),
+                              ...neracaFilteredTransactions.map(t => ({
+                                type: 'TRANSAKSI',
+                                id: t.id,
+                                codeId: t.codeId,
+                                date: t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil,
+                                title: t.kategoriName,
+                                subTitle: `PIC: ${t.pengambil}`,
+                                kasMasuk: t.totalJual || 0,
+                                kasKeluar: (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0)
+                              }))
+                            ].sort((a, b) => (a.date > b.date ? 1 : -1));
+
+                            return combinedEvents.map((item) => {
+                              runningBalance += (item.kasMasuk - item.kasKeluar);
 
                               return (
-                                <tr key={t.id} className="hover:bg-slate-50">
-                                  <td className="px-3 py-3 font-bold">{t.codeId}</td>
-                                  <td className="px-3 py-3">{t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil}</td>
+                                <tr key={item.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-3 font-bold">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      item.type === 'PEMODAL' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-800'
+                                    }`}>
+                                      {item.codeId}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-3">{item.date}</td>
                                   <td className="px-3 py-3">
-                                    <span className="font-bold text-slate-800">{t.kategoriName}</span>
-                                    <span className="block text-[10px] text-slate-400">PIC: {t.pengambil}</span>
+                                    <span className="font-bold text-slate-800">{item.title}</span>
+                                    <span className="block text-[10px] text-slate-400">{item.subTitle}</span>
                                   </td>
                                   <td className="px-3 py-3 text-right font-mono font-bold text-red-600">
-                                    {kasKeluarItem > 0 ? `-${formatRupiah(kasKeluarItem)}` : '-'}
+                                    {item.kasKeluar > 0 ? `-${formatRupiah(item.kasKeluar)}` : '-'}
                                   </td>
                                   <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600">
-                                    {kasMasukItem > 0 ? `+${formatRupiah(kasMasukItem)}` : '-'}
+                                    {item.kasMasuk > 0 ? `+${formatRupiah(item.kasMasuk)}` : '-'}
                                   </td>
                                   <td className="px-3 py-3 text-right font-mono font-black text-slate-800">
                                     {formatRupiah(runningBalance)}
