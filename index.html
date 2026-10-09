@@ -69,7 +69,6 @@
       const [signupNama, setSignupNama] = useState('');
       const [signupEmail, setSignupEmail] = useState('');
       const [signupPassword, setSignupPassword] = useState('');
-      const [signupRole, setSignupRole] = useState('Admin');
 
       const [authError, setAuthError] = useState('');
       const [authSuccess, setAuthSuccess] = useState('');
@@ -288,10 +287,11 @@
           const { createUserWithEmailAndPassword, doc, setDoc } = window.fbFS;
           const userCred = await createUserWithEmailAndPassword(window.fbAuth, signupEmail.trim(), signupPassword.trim());
           
+          // DEFAULT ROLE SAAT DAFTAR ADALAH PETUGAS
           await setDoc(doc(window.fbDb, "users", userCred.user.uid), {
             nama: signupNama.trim(),
             email: signupEmail.trim(),
-            role: signupRole,
+            role: 'Petugas',
             createdAt: Date.now()
           });
 
@@ -817,17 +817,6 @@
                       onChange={(e) => setSignupPassword(e.target.value)}
                       className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Role Akun</label>
-                    <select 
-                      value={signupRole} 
-                      onChange={(e) => setSignupRole(e.target.value)}
-                      className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none bg-white font-bold text-amber-600"
-                    >
-                      <option value="Admin">Admin (Akses Penuh)</option>
-                      <option value="Petugas">Petugas (Akses Input/Laporan)</option>
-                    </select>
                   </div>
                   <button
                     type="submit"
