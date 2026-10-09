@@ -8,6 +8,9 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- JSPDF & AUTOTABLE FOR PDF GENERATION -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   <style>
     /* Custom scrollbar halus untuk mobile navigation */
     .no-scrollbar::-webkit-scrollbar {
@@ -133,6 +136,14 @@
       const [neracaFilterMonth, setNeracaFilterMonth] = useState(getCurrentMonthFormatted());
       const [neracaStartDate, setNeracaStartDate] = useState('');
       const [neracaEndDate, setNeracaEndDate] = useState('');
+
+      // STATE KHUSUS RECAP PDF
+      const [recapFilterType, setRecapFilterType] = useState('ALL');
+      const [recapFilterMonth, setRecapFilterMonth] = useState(getCurrentMonthFormatted());
+      const [recapStartDate, setRecapStartDate] = useState('');
+      const [recapEndDate, setRecapEndDate] = useState('');
+      const [recapPdfTitle, setRecapPdfTitle] = useState('Laporan Rekapitulasi Refining Perak');
+      const [recapPdfNotes, setRecapPdfNotes] = useState('');
 
       const [formPemodal, setFormPemodal] = useState({
         namaPemodal: '',
@@ -885,6 +896,168 @@
         return Object.values(statsMap);
       })();
 
+      // FILTER TRANSAKSI UNTUK TAB RECAP PDF
+      const recapFilteredTransactions = transactions.filter(t => {
+        const tDate = t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil;
+
+        if (recapFilterType === 'MONTH') {
+          if (!recapFilterMonth || !tDate) return true;
+          return tDate.startsWith(recapFilterMonth);
+        } else if (recapFilterType === 'RANGE') {
+          if (!tDate) return false;
+          if (recapStartDate && tDate < recapStartDate) return false;
+          if (recapEndDate && tDate > recapEndDate) return false;
+          return true;
+        }
+        return true;
+      });
+
+      // EKSPORE PDF DENGAN JSPDF & AUTOTABLE
+      const handleGeneratePDF = () => {
+        try {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+          const titleText = recapPdfTitle || 'Laporan Rekapitulasi Refining Perak';
+          const printDate = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+          doc.setFontSize(16);
+          doc.setFont('helvetica', 'bold');
+          doc.text(titleText, 14, 15);
+
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`Dicetak Pada: ${printDate} | Petugas: ${currentUser ? currentUser.nama : '-'}`, 14, 21);
+
+          let filterPeriodeText = 'Semua Waktu';
+          if (recapFilterType === 'MONTH') filterPeriodeText = `Bulan: ${recapFilterMonth}`;
+          else if (recapFilterType === 'RANGE') filterPeriodeText = `Periode: ${recapStartDate || 'Awal'} s/d ${recapEndDate || 'Akhir'}`;
+          doc.text(`Filter Periode: ${filterPeriodeText}`, 14, 26);
+
+          // RINGKASAN METRIK
+          const pdfKotor = recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
+          const pdfMurni = recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
+          const pdfBeli = recapFilteredTransactions.reduce((acc, t) => acc + (t.totalBeli || 0), 0);
+          const pdfOmset = recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
+          const pdfLaba = recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
+
+          doc.setFillColor(241, 245, 249);
+          doc.rect(14, 29, 269, 14, 'F');
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`Total Kotor: ${pdfKotor.toFixed(2)}g  |  Total Murni: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
+
+          // TABEL DATA TRANSAKSI
+          const tableColumn = [
+            "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor(g)", "H.Beli/g", "Total Beli", "Murni(g)", "H.Jual/g", "Total Jual", "Laba Bersih", "Status"
+          ];
+
+          const tableRows = recapFilteredTransactions.map(t => {
+            const hBeli = t.hargaBeliSatuan || (t.jumlahKotor ? Math.round(t.totalBeli / t.jumlahKotor) : 0);
+            const hJual = t.hargaJualSatuan || (t.jumlahMurni ? Math.round(t.totalJual / t.jumlahMurni) : 0);
+
+            return [
+              t.codeId || '-',
+              t.tanggalAmbil || '-',
+              t.tanggalOlah || '-',
+              t.tanggalPenjualan || '-',
+              t.kategoriName || '-',
+              t.tempatAmbil || '-',
+              t.pengambil || '-',
+              (t.jumlahKotor || 0).toFixed(2),
+              formatRupiah(hBeli),
+              formatRupiah(t.totalBeli || 0),
+              (t.jumlahMurni || 0).toFixed(2),
+              hJual > 0 ? formatRupiah(hJual) : '-',
+              formatRupiah(t.totalJual || 0),
+              formatRupiah(t.totalUntung || 0),
+              t.status || '-'
+            ];
+          });
+
+          doc.autoTable({
+            startY: 47,
+            head: [tableColumn],
+            body: tableRows,
+            theme: 'grid',
+            headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 6.5 },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            margin: { left: 14, right: 14 }
+          });
+
+          let currentY = doc.lastAutoTable.finalY + 8;
+
+          // TABEL BUKU MUTASI
+          if (currentY > 170) {
+            doc.addPage();
+            currentY = 15;
+          }
+
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+          doc.text("Ringkasan Buku Mutasi Arus Kas & Saldo", 14, currentY);
+
+          const mutasiColumn = ["Kode Event", "Tanggal", "Keterangan", "Kas Masuk", "Kas Keluar", "Saldo Kas Akhir"];
+          let runningBal = 0;
+
+          const mutasiEvents = [
+            ...pemodalList.map(p => ({
+              code: 'INV-SETOR', date: p.tanggalBergabung, title: `Investasi Setor (${p.namaPemodal})`, masuk: p.jumlahModal, keluar: 0
+            })),
+            ...additionList.map(a => ({
+              code: 'INV-TAMBAH', date: a.tanggal, title: `Tambah Modal (${a.namaPemodal})`, masuk: a.jumlahTambah, keluar: 0
+            })),
+            ...withdrawalList.map(w => ({
+              code: 'INV-TARIK', date: w.tanggal, title: `Tarik Modal (${w.namaPemodal})`, masuk: 0, keluar: w.jumlahTarik
+            })),
+            ...recapFilteredTransactions.map(t => ({
+              code: t.codeId, date: t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil, title: `${t.kategoriName} (${t.pengambil})`, masuk: t.totalJual || 0, keluar: (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0)
+            }))
+          ].sort((a, b) => (a.date > b.date ? 1 : -1));
+
+          const mutasiRows = mutasiEvents.map(m => {
+            runningBal += (m.masuk - m.keluar);
+            return [
+              m.code,
+              m.date,
+              m.title,
+              m.masuk > 0 ? formatRupiah(m.masuk) : '-',
+              m.keluar > 0 ? formatRupiah(m.keluar) : '-',
+              formatRupiah(runningBal)
+            ];
+          });
+
+          doc.autoTable({
+            startY: currentY + 3,
+            head: [mutasiColumn],
+            body: mutasiRows,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 6.5 },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            margin: { left: 14, right: 14 }
+          });
+
+          if (recapPdfNotes.trim()) {
+            let noteY = doc.lastAutoTable.finalY + 8;
+            if (noteY > 180) {
+              doc.addPage();
+              noteY = 15;
+            }
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            doc.text(`Catatan Tambahan: ${recapPdfNotes.trim()}`, 14, noteY);
+          }
+
+          doc.save(`Recap_Refining_Perak_${recapFilterMonth || getTodayFormatted()}.pdf`);
+          showToast('📄 Berhasil mendownload Rekap PDF!');
+        } catch (err) {
+          console.error("Gagal cetak PDF:", err);
+          alert('Gagal membuat file PDF: ' + err.message);
+        }
+      };
+
       // FILTER KHUSUS PEMODAL DENGAN ACUAN TANGGAL PENJUALAN
       const pemodalFilteredTransactions = transactions.filter(t => {
         if (t.status !== 'TERJUAL') return false;
@@ -1416,6 +1589,14 @@
                   🤝 Pemodal ({pemodalList.length})
                 </button>
                 <button
+                  onClick={() => setActiveTab('recap_pdf')}
+                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                    activeTab === 'recap_pdf' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-emerald-400'
+                  }`}
+                >
+                  📄 Recap PDF
+                </button>
+                <button
                   onClick={() => setActiveTab('categories')}
                   className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
                     activeTab === 'categories' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
@@ -1446,6 +1627,158 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+            {/* TAB MENU RECAP LIST & DOWNLOAD PDF */}
+            {activeTab === 'recap_pdf' && (
+              <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                        📄 Recap List & Cetak Laporan PDF
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Unduh rekapitulasi pembelian, pengolahan, & penjualan dalam format PDF.</p>
+                    </div>
+
+                    <button
+                      onClick={handleGeneratePDF}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-xs w-full sm:w-auto justify-center active:scale-95"
+                    >
+                      📥 Download PDF Sekarang
+                    </button>
+                  </div>
+
+                  <div className="p-4 sm:p-6 space-y-4 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase">1. Pengaturan Filter Periode Laporan</h3>
+
+                    <div className="grid grid-cols-3 bg-slate-200 p-1 rounded-xl text-center">
+                      <button
+                        onClick={() => setRecapFilterType('ALL')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Semua Waktu
+                      </button>
+                      <button
+                        onClick={() => setRecapFilterType('MONTH')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Bulanan
+                      </button>
+                      <button
+                        onClick={() => setRecapFilterType('RANGE')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Rentang Tanggal
+                      </button>
+                    </div>
+
+                    {recapFilterType === 'MONTH' && (
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Bulan:</label>
+                        <input
+                          type="month"
+                          value={recapFilterMonth}
+                          onChange={(e) => setRecapFilterMonth(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {recapFilterType === 'RANGE' && (
+                      <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Dari Tanggal:</label>
+                          <input
+                            type="date"
+                            value={recapStartDate}
+                            onChange={(e) => setRecapStartDate(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Sampai Tanggal:</label>
+                          <input
+                            type="date"
+                            value={recapEndDate}
+                            onChange={(e) => setRecapEndDate(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <h3 className="text-xs font-bold text-slate-700 uppercase pt-2">2. Informasi Dokumen PDF</h3>
+                    <div className="space-y-3 bg-white p-3 rounded-xl border border-slate-200">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Judul Dokumen PDF</label>
+                        <input
+                          type="text"
+                          value={recapPdfTitle}
+                          onChange={(e) => setRecapPdfTitle(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold"
+                          placeholder="Judul laporan..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan Tambahan di PDF (Opsional)</label>
+                        <input
+                          type="text"
+                          value={recapPdfNotes}
+                          onChange={(e) => setRecapPdfNotes(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-xs"
+                          placeholder="e.g. Laporan ini telah disetujui oleh manajemen"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PRATINJAU METRIK LAPORAN YANG AKAN DICETAK */}
+                  <div className="p-4 sm:p-6 space-y-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase">Ringkasan Data Laporan Terfilter ({recapFilteredTransactions.length} Transaksi)</h3>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Bahan Kotor</span>
+                        <span className="font-bold text-sm text-slate-800">
+                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0).toFixed(2)}g
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Perak Murni</span>
+                        <span className="font-bold text-sm text-blue-600">
+                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0).toFixed(2)}g
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Omset Jual</span>
+                        <span className="font-bold text-sm text-emerald-600">
+                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0))}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Laba Bersih</span>
+                        <span className="font-bold text-sm text-amber-600">
+                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0))}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleGeneratePDF}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold py-3.5 rounded-xl shadow transition active:scale-95 text-xs mt-2"
+                    >
+                      📥 Unduh Dokumen PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* TAB KONTROL USER / MANAJEMEN ROLE */}
             {activeTab === 'users' && currentUser.role === 'Admin' && (
               <div className="max-w-4xl mx-auto space-y-4">
