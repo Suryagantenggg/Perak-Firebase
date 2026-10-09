@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Refining Perak System - Auto Migration to Firebase</title>
+  <title>Refining Perak System - Firebase Cloud Version</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -44,12 +44,11 @@
     };
   </script>
 
-  <!-- SCRIPT MIGRATION & REACT APP -->
+  <!-- SCRIPT APLIKASI REACT -->
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // DATA HASIL IMPOR DARI SPREADSHEET ANDA
-    const SPREADSHEET_CATEGORIES = [
+    const DEFAULT_CATEGORIES = [
       { code: 'A', name: 'Pentolan Kontaktor' },
       { code: 'B', name: 'Kontak Point' },
       { code: 'C', name: 'Ex Breaker' },
@@ -59,166 +58,6 @@
       { code: 'G', name: 'Fuse' },
       { code: 'H', name: 'Patung' },
       { code: 'I', name: 'ACB' }
-    ];
-
-    const SPREADSHEET_USERS = [
-      { nama: 'Reva', email: 'reva@perak.com', role: 'Admin' },
-      { nama: 'Admin', email: 'admin@perak.com', role: 'Admin' },
-      { nama: 'Zaenal Abidin', email: 'zaenal@perak.com', role: 'Petugas' },
-      { nama: 'Andi', email: 'andi@perak.com', role: 'Petugas' }
-    ];
-
-    const SPREADSHEET_TRANSACTIONS = [
-      {
-        codeId: 'TRX-001',
-        tanggalAmbil: '2026-10-04',
-        kategoriName: '[A] Pentolan Kontaktor',
-        pengambil: 'Andi',
-        tempatAmbil: 'Desa Cibuntu, Tambun Utara',
-        lokasiAmbil: 'Tambun Utara',
-        jumlahKotor: 499,
-        totalBeli: 10978000,
-        biayaTransport: 72000,
-        pengolah: 'Zaenal Abidin',
-        jumlahMurni: 417.19,
-        biayaOlah: 84965,
-        efisiensi: 83.61,
-        tanggalOlah: '2026-10-07',
-        tanggalPenjualan: '2026-10-07',
-        tokoPembeli: 'Zaenal Abidin',
-        jumlahJual: 417.19,
-        hargaJualSatuan: 29000,
-        totalJual: 12098510,
-        biayaPenjualan: 63724,
-        totalUntung: 899821,
-        status: 'TERJUAL',
-        createdAt: 1728000000000
-      },
-      {
-        codeId: 'TRX-002',
-        tanggalAmbil: '2026-10-01',
-        kategoriName: '[A] Pentolan Kontaktor',
-        pengambil: 'Zaenal',
-        tempatAmbil: 'Sunter blok A',
-        lokasiAmbil: 'Sunter',
-        jumlahKotor: 88.3,
-        totalBeli: 1854300,
-        biayaTransport: 5000,
-        pengolah: 'Zaenal Abidin',
-        jumlahMurni: 73.82,
-        biayaOlah: 15035,
-        efisiensi: 83.60,
-        tanggalOlah: '2026-10-07',
-        tanggalPenjualan: '2026-10-07',
-        tokoPembeli: 'Zaenal Abidin',
-        jumlahJual: 73.82,
-        hargaJualSatuan: 29000,
-        totalJual: 2140780,
-        biayaPenjualan: 11276,
-        totalUntung: 255169,
-        status: 'TERJUAL',
-        createdAt: 1727740800000
-      },
-      {
-        codeId: 'TRX-003',
-        tanggalAmbil: '2026-10-04',
-        kategoriName: '[I] ACB',
-        pengambil: 'Zaenal',
-        tempatAmbil: 'Lapak Madura Cakung',
-        lokasiAmbil: 'Cakung',
-        jumlahKotor: 1,
-        totalBeli: 5600000,
-        biayaTransport: 50000,
-        pengolah: 'Zaenal Abidin',
-        jumlahMurni: 1,
-        biayaOlah: 1,
-        efisiensi: 100,
-        tanggalOlah: '2026-10-04',
-        tanggalPenjualan: '',
-        tokoPembeli: '-',
-        jumlahJual: 0,
-        hargaJualSatuan: 0,
-        totalJual: 0,
-        biayaPenjualan: 0,
-        totalUntung: 0,
-        status: 'SELESAI_OLAH',
-        createdAt: 1728000000001
-      },
-      {
-        codeId: 'TRX-004',
-        tanggalAmbil: '2026-10-06',
-        kategoriName: '[A] Pentolan Kontaktor',
-        pengambil: 'Zaenal Abidin',
-        tempatAmbil: 'Menteng',
-        lokasiAmbil: 'Menteng',
-        jumlahKotor: 32.42,
-        totalBeli: 713240,
-        biayaTransport: 15000,
-        pengolah: '-',
-        jumlahMurni: 0,
-        biayaOlah: 0,
-        efisiensi: 0,
-        tanggalOlah: '',
-        tanggalPenjualan: '',
-        tokoPembeli: '-',
-        jumlahJual: 0,
-        hargaJualSatuan: 0,
-        totalJual: 0,
-        biayaPenjualan: 0,
-        totalUntung: 0,
-        status: 'MENUNGGU_OLAH',
-        createdAt: 1728172800000
-      },
-      {
-        codeId: 'TRX-005',
-        tanggalAmbil: '2026-10-06',
-        kategoriName: '[C] Ex Breaker',
-        pengambil: 'Zaenal Abidin',
-        tempatAmbil: 'Danau Cincin, Papanggo Jakut',
-        lokasiAmbil: 'Papanggo Jakut',
-        jumlahKotor: 24,
-        totalBeli: 360000,
-        biayaTransport: 5000,
-        pengolah: '-',
-        jumlahMurni: 0,
-        biayaOlah: 0,
-        efisiensi: 0,
-        tanggalOlah: '',
-        tanggalPenjualan: '',
-        tokoPembeli: '-',
-        jumlahJual: 0,
-        hargaJualSatuan: 0,
-        totalJual: 0,
-        biayaPenjualan: 0,
-        totalUntung: 0,
-        status: 'MENUNGGU_OLAH',
-        createdAt: 1728172800001
-      },
-      {
-        codeId: 'TRX-006',
-        tanggalAmbil: '2026-10-07',
-        kategoriName: '[A] Pentolan Kontaktor',
-        pengambil: 'Zaenal Abidin',
-        tempatAmbil: 'Menteng',
-        lokasiAmbil: 'Menteng',
-        jumlahKotor: 22.5,
-        totalBeli: 495000,
-        biayaTransport: 20000,
-        pengolah: '-',
-        jumlahMurni: 0,
-        biayaOlah: 0,
-        efisiensi: 0,
-        tanggalOlah: '',
-        tanggalPenjualan: '',
-        tokoPembeli: '-',
-        jumlahJual: 0,
-        hargaJualSatuan: 0,
-        totalJual: 0,
-        biayaPenjualan: 0,
-        totalUntung: 0,
-        status: 'MENUNGGU_OLAH',
-        createdAt: 1728259200000
-      }
     ];
 
     function App() {
@@ -251,37 +90,6 @@
         setTimeout(() => setToastMsg(''), 4000);
       };
 
-      // FUNGSI UTAMA MIGRASI OTOMATIS SPREADSHEET KE FIREBASE
-      const handleRunAutoMigration = async () => {
-        if (!window.confirm('Proses ini akan mengimpor seluruh Kategori, User, dan 6 Transaksi dari Google Sheets ke Firebase. Lanjutkan?')) return;
-
-        setLoading(true);
-        const { collection, addDoc, doc, setDoc } = window.fbFS;
-
-        try {
-          // 1. Impor Kategori
-          for (let cat of SPREADSHEET_CATEGORIES) {
-            await addDoc(collection(window.fbDb, "categories"), {
-              code: cat.code,
-              name: cat.name,
-              createdAt: Date.now()
-            });
-          }
-
-          // 2. Impor Transaksi Riwayat
-          for (let trx of SPREADSHEET_TRANSACTIONS) {
-            await addDoc(collection(window.fbDb, "transactions"), trx);
-          }
-
-          setLoading(false);
-          alert('🎉 MIGRASI SUKSES! 9 Kategori & 6 Transaksi dari Spreadsheet berhasil dimasukkan ke Firebase!');
-          window.location.reload();
-        } catch (err) {
-          setLoading(false);
-          alert('Gagal migrasi data: ' + err.message);
-        }
-      };
-
       useEffect(() => {
         const checkFB = setInterval(() => {
           if (window.fbAuth) {
@@ -311,7 +119,7 @@
             const unsubscribe = onSnapshot(q, (snapshot) => {
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
-              setCategories(list.length > 0 ? list : SPREADSHEET_CATEGORIES);
+              setCategories(list.length > 0 ? list : DEFAULT_CATEGORIES);
             });
 
             return () => unsubscribe();
@@ -398,6 +206,43 @@
         }
       };
 
+      const handleAddCategory = async (e) => {
+        e.preventDefault();
+        if (!newCatCode.trim() || !newCatName.trim()) return alert('Kode dan Nama Kategori harus diisi!');
+
+        setLoading(true);
+        try {
+          const { collection, addDoc } = window.fbFS;
+          await addDoc(collection(window.fbDb, "categories"), {
+            code: newCatCode.trim().toUpperCase(),
+            name: newCatName.trim(),
+            createdAt: Date.now()
+          });
+          setLoading(false);
+          showToast('✅ Kategori baru berhasil ditambahkan!');
+          setNewCatCode('');
+          setNewCatName('');
+        } catch (err) {
+          setLoading(false);
+          alert('Gagal menambah kategori: ' + err.message);
+        }
+      };
+
+      const handleDeleteCategory = async (id) => {
+        if (window.confirm('Hapus kategori barang ini?')) {
+          setLoading(true);
+          try {
+            const { doc, deleteDoc } = window.fbFS;
+            await deleteDoc(doc(window.fbDb, "categories", id));
+            setLoading(false);
+            showToast('🗑️ Kategori dihapus!');
+          } catch (err) {
+            setLoading(false);
+            alert('Gagal menghapus kategori!');
+          }
+        }
+      };
+
       const getTodayFormatted = () => {
         const now = new Date();
         const y = now.getFullYear();
@@ -444,7 +289,7 @@
         const kotor = parseFloat(formAmbil.jumlahKotor) || 0;
         const hargaBeli = parseFloat(formAmbil.hargaBeliSatuan) || 0;
         const transport = parseFloat(formAmbil.biayaTransport) || 0;
-        const selectedCat = categories.find(c => c.code === formAmbil.kategoriCode) || categories[0];
+        const selectedCat = categories.find(c => c.code === formAmbil.kategoriCode) || categories[0] || { code: 'A', name: 'Umum' };
 
         const payload = {
           codeId: 'TRX-' + Math.floor(1000 + Math.random() * 9000),
@@ -779,12 +624,6 @@
               </div>
 
               <div className="flex items-center gap-3">
-                <button 
-                  onClick={handleRunAutoMigration}
-                  className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg shadow animate-pulse"
-                >
-                  🚀 KLIK UNTUK MIGRASI DATA SPREADSHEET KE FIREBASE
-                </button>
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-200">{currentUser.nama}</p>
                   <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-semibold">{currentUser.role}</span>
@@ -845,6 +684,246 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-4 py-8">
+            {/* TAB MASTER KATEGORI BARANG */}
+            {activeTab === 'categories' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-6">
+                    <h2 className="text-lg font-bold">⚙️ Kelola Master Kategori Barang (Firestore)</h2>
+                    <p className="text-xs text-slate-400 mt-1">Tambah atau hapus jenis kategori barang perak di sini.</p>
+                  </div>
+                  
+                  <form onSubmit={handleAddCategory} className="p-6 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase mb-3">Tambah Kategori Baru</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Kode (A-Z)</label>
+                        <input type="text" required placeholder="e.g. J" value={newCatCode} onChange={(e) => setNewCatCode(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm uppercase bg-white font-bold" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Kategori</label>
+                        <input type="text" required placeholder="e.g. Perak Murni Batangan" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="flex items-end">
+                        <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-2.5 rounded-lg shadow">
+                          + Tambah Kategori
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+
+                  <div className="p-6">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase mb-3">Daftar Kategori Aktif</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {categories.map((cat) => (
+                        <div key={cat.id || cat.code} className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center shadow-sm hover:border-amber-400 transition">
+                          <div>
+                            <span className="inline-block bg-amber-100 text-amber-800 font-black text-xs px-2 py-0.5 rounded mr-2">[{cat.code}]</span>
+                            <span className="text-xs font-bold text-slate-800">{cat.name}</span>
+                          </div>
+                          {cat.id && (
+                            <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400 hover:text-red-600 font-bold text-xs">🗑️</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 1: PEMBELIAN */}
+            {activeTab === 'pengambilan' && (
+              <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-6">
+                  <h2 className="text-lg font-bold">📥 Input Pembelian Barang Mentah</h2>
+                </div>
+                <form onSubmit={handleSavePengambilan} className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Pengambilan</label>
+                      <input type="date" required value={formAmbil.tanggal} onChange={(e) => setFormAmbil({ ...formAmbil, tanggal: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Pengambil Barang (PIC)</label>
+                      <input type="text" required placeholder="e.g. Andi" value={formAmbil.pengambilSelect} onChange={(e) => setFormAmbil({ ...formAmbil, pengambilSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">📍 Sumber & Lokasi Pengambilan</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Lokasi Pengambilan</label>
+                        <input type="text" required placeholder="e.g. PT Surya Jaya" value={formAmbil.tempatAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, tempatAmbil: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Daerah Pengambilan</label>
+                        <input type="text" required placeholder="e.g. Cikarang, Bekasi" value={formAmbil.lokasiAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, lokasiAmbil: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Kategori Jenis Barang</label>
+                    <select value={formAmbil.kategoriCode} onChange={(e) => setFormAmbil({ ...formAmbil, kategoriCode: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold text-slate-700">
+                      {categories.map((cat) => (
+                        <option key={cat.code} value={cat.code}>[{cat.code}] {cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Total Jumlah (Gram)</label>
+                      <input type="number" step="0.01" required value={formAmbil.jumlahKotor} onChange={(e) => setFormAmbil({ ...formAmbil, jumlahKotor: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Beli / Gram (Rp)</label>
+                      <input type="number" required value={formAmbil.hargaBeliSatuan} onChange={(e) => setFormAmbil({ ...formAmbil, hargaBeliSatuan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Transport (Rp)</label>
+                      <input type="number" placeholder="e.g. 50000" value={formAmbil.biayaTransport} onChange={(e) => setFormAmbil({ ...formAmbil, biayaTransport: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3 rounded-lg shadow">
+                    Simpan ke Firebase ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 2: PENGOLAHAN */}
+            {activeTab === 'pengolahan' && (
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-6">
+                  <h2 className="text-lg font-bold">🧪 Input Pengolahan & Pemurnian</h2>
+                </div>
+                <form onSubmit={handleSavePengolahan} className="p-6 space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                      Pilih Transaksi ({formOlah.selectedTrxIds.length} Dipilih)
+                    </label>
+                    {pendingOlahList.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center">
+                        Tidak ada antrean barang mentah yang belum diolah.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                        {pendingOlahList.map((t) => {
+                          const isChecked = formOlah.selectedTrxIds.includes(t.id);
+                          return (
+                            <label key={t.id} className={`flex items-center justify-between p-3 cursor-pointer transition ${isChecked ? 'bg-amber-50' : 'hover:bg-slate-50'}`}>
+                              <div className="flex items-center gap-3">
+                                <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectOlah(t.id)} className="w-4 h-4 text-amber-500 rounded" />
+                                <div>
+                                  <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
+                                  <p className="text-[11px] text-slate-500">📍 {t.tempatAmbil} | PIC: {t.pengambil}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-mono font-bold text-xs text-slate-700">{t.jumlahKotor} Gram</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Pengolahan</label>
+                      <input type="date" required value={formOlah.tanggalOlah} onChange={(e) => setFormOlah({ ...formOlah, tanggalOlah: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">PIC Pengolah</label>
+                      <input type="text" required placeholder="e.g. Zaenal" value={formOlah.pengolahSelect} onChange={(e) => setFormOlah({ ...formOlah, pengolahSelect: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Hasil Pengolahan (Gram)</label>
+                      <input type="number" step="0.01" required value={formOlah.jumlahMurni} onChange={(e) => setFormOlah({ ...formOlah, jumlahMurni: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-blue-700" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Pengolahan (Rp)</label>
+                      <input type="number" placeholder="e.g. 100000" value={formOlah.biayaOlah} onChange={(e) => setFormOlah({ ...formOlah, biayaOlah: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow">
+                    Simpan Pemurnian ke Firebase ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 3: PENJUALAN */}
+            {activeTab === 'penjualan' && (
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-6">
+                  <h2 className="text-lg font-bold">💰 Input Penjualan Perak Murni</h2>
+                </div>
+                <form onSubmit={handleSavePenjualan} className="p-6 space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                      Pilih Barang Siap Jual ({formJual.selectedTrxIds.length} Dipilih)
+                    </label>
+                    {pendingJualList.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border rounded-lg text-xs text-slate-500 text-center">
+                        Tidak ada barang hasil olahan yang belum dijual.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                        {pendingJualList.map((t) => {
+                          const isChecked = formJual.selectedTrxIds.includes(t.id);
+                          return (
+                            <label key={t.id} className={`flex items-center justify-between p-3 cursor-pointer transition ${isChecked ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}>
+                              <div className="flex items-center gap-3">
+                                <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectJual(t.id)} className="w-4 h-4 text-emerald-600 rounded" />
+                                <div>
+                                  <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
+                                  <p className="text-[11px] text-slate-500">Pengolah: {t.pengolah}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-mono font-bold text-xs text-blue-600">{t.jumlahMurni} Gram</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penjualan</label>
+                      <input type="date" required value={formJual.tanggalJual} onChange={(e) => setFormJual({ ...formJual, tanggalJual: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Jual / Gram (Rp)</label>
+                      <input type="number" required value={formJual.hargaJualSatuan} onChange={(e) => setFormJual({ ...formJual, hargaJualSatuan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-700" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Aktifitas Penjualan (Rp)</label>
+                    <input type="number" placeholder="e.g. 50000" value={formJual.biayaPenjualan} onChange={(e) => setFormJual({ ...formJual, biayaPenjualan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg shadow">
+                    Selesaikan Penjualan ke Firebase ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 4: LAPORAN & METRIK REALTIME */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
