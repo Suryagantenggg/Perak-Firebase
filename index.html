@@ -395,6 +395,10 @@
 
       const handleSaveWithdrawal = async (e) => {
         e.preventDefault();
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
         const nominal = parseFloat(formWithdraw.jumlahTarik) || 0;
         if (!selectedPemodalWithdraw || nominal <= 0) return alert('Nominal penarikan harus > 0!');
 
@@ -429,6 +433,10 @@
       };
 
       const handleDeleteWithdrawal = async (id) => {
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
         if (window.confirm('Batalkan / Hapus data penarikan modal ini?')) {
           setLoading(true);
           try {
@@ -444,6 +452,10 @@
       };
 
       const handleDeletePemodal = async (id) => {
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
         if (window.confirm('Hapus data pemodal ini dari Firestore? (Riwayat penarikan modal juga akan terpengaruh)')) {
           setLoading(true);
           try {
@@ -949,8 +961,8 @@
             </div>
           )}
 
-          {/* MODAL FORM PENARIKAN MODAL */}
-          {selectedPemodalWithdraw && (
+          {/* MODAL FORM PENARIKAN MODAL (HANYA DITAMPILKAN JIKA ROLE ADMIN) */}
+          {selectedPemodalWithdraw && currentUser.role === 'Admin' && (
             <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
@@ -1649,16 +1661,26 @@
                                     {formatRupiah(totalNilaiAkhir)}
                                   </td>
                                   <td className="px-3 py-3 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <button 
-                                        onClick={() => setSelectedPemodalWithdraw(p)} 
-                                        title="Penarikan Modal"
-                                        className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1 rounded text-[10px] font-bold"
-                                      >
-                                        💸 Tarik Modal
-                                      </button>
-                                      <button onClick={() => handleDeletePemodal(p.id)} className="text-red-500 hover:text-red-700 font-bold text-xs">🗑️</button>
-                                    </div>
+                                    {currentUser.role === 'Admin' ? (
+                                      <div className="flex items-center justify-center gap-2">
+                                        <button 
+                                          onClick={() => setSelectedPemodalWithdraw(p)} 
+                                          title="Penarikan Modal"
+                                          className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1 rounded text-[10px] font-bold"
+                                        >
+                                          💸 Tarik Modal
+                                        </button>
+                                        <button 
+                                          onClick={() => handleDeletePemodal(p.id)} 
+                                          className="text-red-500 hover:text-red-700 font-bold text-xs"
+                                          title="Hapus Pemodal"
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 italic">Khusus Admin</span>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -1710,7 +1732,11 @@
                                 </td>
                                 <td className="px-3 py-2.5 text-slate-500">{w.catatan}</td>
                                 <td className="px-3 py-2.5 text-center">
-                                  <button onClick={() => handleDeleteWithdrawal(w.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️</button>
+                                  {currentUser.role === 'Admin' ? (
+                                    <button onClick={() => handleDeleteWithdrawal(w.id)} className="text-red-500 hover:text-red-700 font-bold" title="Hapus Penarikan">🗑️</button>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 italic">-</span>
+                                  )}
                                 </td>
                               </tr>
                             ))}
