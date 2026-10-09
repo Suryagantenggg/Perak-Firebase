@@ -92,6 +92,7 @@
       const [categories, setCategories] = useState([]);
       const [pemodalList, setPemodalList] = useState([]);
       const [withdrawalList, setWithdrawalList] = useState([]);
+      const [additionList, setAdditionList] = useState([]);
       const [userList, setUserList] = useState([]);
 
       const [newCatCode, setNewCatCode] = useState('');
@@ -146,6 +147,14 @@
       const [formWithdraw, setFormWithdraw] = useState({
         tanggal: getTodayFormatted(),
         jumlahTarik: '',
+        catatan: ''
+      });
+
+      // STATE MODAL TAMBAH MODAL
+      const [selectedPemodalAdd, setSelectedPemodalAdd] = useState(null);
+      const [formAddModal, setFormAddModal] = useState({
+        tanggal: getTodayFormatted(),
+        jumlahTambah: '',
         catatan: ''
       });
 
@@ -298,6 +307,27 @@
         }, 100);
       }, [currentUser]);
 
+      // FETCH DATA PENAMBAHAN MODAL
+      useEffect(() => {
+        if (!currentUser) return;
+
+        const checkADD = setInterval(() => {
+          if (window.fbDb) {
+            clearInterval(checkADD);
+            const { collection, query, orderBy, onSnapshot } = window.fbFS;
+            const q = query(collection(window.fbDb, "pemodal_additions"), orderBy("createdAt", "desc"));
+
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+              const list = [];
+              snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+              setAdditionList(list);
+            });
+
+            return () => unsubscribe();
+          }
+        }, 100);
+      }, [currentUser]);
+
       const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -412,10 +442,15 @@
         const nominal = parseFloat(formWithdraw.jumlahTarik) || 0;
         if (!selectedPemodalWithdraw || nominal <= 0) return alert('Nominal penarikan harus > 0!');
 
+        const totalTambahan = additionList
+          .filter(a => a.pemodalId === selectedPemodalWithdraw.id)
+          .reduce((sum, a) => sum + (a.jumlahTambah || 0), 0);
+
         const existingWithdrawn = withdrawalList
           .filter(w => w.pemodalId === selectedPemodalWithdraw.id)
           .reduce((sum, w) => sum + (w.jumlahTarik || 0), 0);
-        const sisaModalMax = selectedPemodalWithdraw.jumlahModal - existingWithdrawn;
+
+        const sisaModalMax = selectedPemodalWithdraw.jumlahModal + totalTambahan - existingWithdrawn;
 
         if (nominal > sisaModalMax) {
           return alert(`Jumlah penarikan (Rp ${nominal.toLocaleString()}) melebihi sisa modal aktif (Rp ${sisaModalMax.toLocaleString()})!`);
@@ -442,6 +477,36 @@
         }
       };
 
+      const handleSaveAddition = async (e) => {
+        e.preventDefault();
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
+        const nominal = parseFloat(formAddModal.jumlahTambah) || 0;
+        if (!selectedPemodalAdd || nominal <= 0) return alert('Nominal penambahan modal harus > 0!');
+
+        setLoading(true);
+        try {
+          const { collection, addDoc } = window.fbFS;
+          await addDoc(collection(window.fbDb, "pemodal_additions"), {
+            pemodalId: selectedPemodalAdd.id,
+            namaPemodal: selectedPemodalAdd.namaPemodal,
+            tanggal: formAddModal.tanggal,
+            jumlahTambah: nominal,
+            catatan: formAddModal.catatan.trim() || '-',
+            createdAt: Date.now()
+          });
+          setLoading(false);
+          showToast('➕ Penambahan modal berhasil dicatat!');
+          setSelectedPemodalAdd(null);
+          setFormAddModal({ tanggal: getTodayFormatted(), jumlahTambah: '', catatan: '' });
+        } catch (err) {
+          setLoading(false);
+          alert('Gagal menambah modal: ' + err.message);
+        }
+      };
+
       const handleDeleteWithdrawal = async (id) => {
         if (currentUser.role !== 'Admin') {
           return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
@@ -461,12 +526,31 @@
         }
       };
 
+      const handleDeleteAddition = async (id) => {
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
+        if (window.confirm('Batalkan / Hapus data penambahan modal ini?')) {
+          setLoading(true);
+          try {
+            const { doc, deleteDoc } = window.fbFS;
+            await deleteDoc(doc(window.fbDb, "pemodal_additions", id));
+            setLoading(false);
+            showToast('🗑️ Penambahan modal dibatalkan!');
+          } catch (err) {
+            setLoading(false);
+            alert('Gagal menghapus data penambahan modal!');
+          }
+        }
+      };
+
       const handleDeletePemodal = async (id) => {
         if (currentUser.role !== 'Admin') {
           return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
         }
 
-        if (window.confirm('Hapus data pemodal ini dari Firestore? (Riwayat penarikan modal juga akan terpengaruh)')) {
+        if (window.confirm('Hapus data pemodal ini dari Firestore? (Riwayat penarikan & penambahan modal terkait akan terpengaruh)')) {
           setLoading(true);
           try {
             const { doc, deleteDoc } = window.fbFS;
@@ -765,10 +849,12 @@
 
       const pemodalTotalLabaPeriod = pemodalFilteredTransactions.reduce((acc, t) => acc + (t.totalUntung || 0), 0);
       
-      // HITUNG TOTAL MODAL INVESTOR AKTIF
+      // HITUNG TOTAL MODAL INVESTOR AKTIF DENGAN PENAMBAHAN & PENARIKAN
       const totalModalAwalSetor = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
+      const totalPenambahanModalAll = additionList.reduce((acc, a) => acc + (a.jumlahTambah || 0), 0);
       const totalPenarikanModalAll = withdrawalList.reduce((acc, w) => acc + (w.jumlahTarik || 0), 0);
-      const totalModalAktifNet = totalModalAwalSetor - totalPenarikanModalAll;
+      const totalModalDisetorBruto = totalModalAwalSetor + totalPenambahanModalAll;
+      const totalModalAktifNet = totalModalDisetorBruto - totalPenarikanModalAll;
 
       const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
       const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
@@ -817,7 +903,24 @@
         return true;
       });
 
-      const totalModalInvestorPeriod = filteredPemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
+      const filteredAdditionList = additionList.filter(a => {
+        const aDate = a.tanggal;
+        if (neracaFilterType === 'MONTH') {
+          if (!neracaFilterMonth || !aDate) return true;
+          return aDate.startsWith(neracaFilterMonth);
+        } else if (neracaFilterType === 'RANGE') {
+          if (!aDate) return false;
+          if (neracaStartDate && aDate < neracaStartDate) return false;
+          if (neracaEndDate && aDate > neracaEndDate) return false;
+          return true;
+        }
+        return true;
+      });
+
+      const totalModalInvestorAwalPeriod = filteredPemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
+      const totalModalInvestorTambahPeriod = filteredAdditionList.reduce((acc, a) => acc + (a.jumlahTambah || 0), 0);
+      const totalModalInvestorPeriod = totalModalInvestorAwalPeriod + totalModalInvestorTambahPeriod;
+
       const totalKasMasukPenjualan = neracaFilteredTransactions.reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalKasMasukKeseluruhan = totalModalInvestorPeriod + totalKasMasukPenjualan;
 
@@ -994,16 +1097,22 @@
 
                 <form onSubmit={handleSaveWithdrawal} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
                   {(() => {
+                    const totalTambah = additionList
+                      .filter(a => a.pemodalId === selectedPemodalWithdraw.id)
+                      .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
                     const totalWD = withdrawalList
                       .filter(w => w.pemodalId === selectedPemodalWithdraw.id)
                       .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
-                    const sisaModal = selectedPemodalWithdraw.jumlahModal - totalWD;
+
+                    const totalDisetor = selectedPemodalWithdraw.jumlahModal + totalTambah;
+                    const sisaModal = totalDisetor - totalWD;
 
                     return (
                       <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-1">
                         <div className="flex justify-between text-xs">
-                          <span className="text-slate-500 font-medium">Modal Awal Setor:</span>
-                          <span className="font-bold text-slate-800">{formatRupiah(selectedPemodalWithdraw.jumlahModal)}</span>
+                          <span className="text-slate-500 font-medium">Total Modal Disetor:</span>
+                          <span className="font-bold text-slate-800">{formatRupiah(totalDisetor)}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-slate-500 font-medium">Total Pernah Ditarik:</span>
@@ -1066,6 +1175,110 @@
                       className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
                     >
                       Konfirmasi ➔
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL FORM TAMBAH MODAL */}
+          {selectedPemodalAdd && currentUser.role === 'Admin' && (
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-none duration-200">
+                <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm text-emerald-400">➕ Penambahan Modal Investor</h3>
+                    <p className="text-xs text-slate-300 font-semibold">{selectedPemodalAdd.namaPemodal}</p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedPemodalAdd(null)}
+                    className="text-slate-400 hover:text-white p-2 text-xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveAddition} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                  {(() => {
+                    const totalTambah = additionList
+                      .filter(a => a.pemodalId === selectedPemodalAdd.id)
+                      .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
+                    const totalWD = withdrawalList
+                      .filter(w => w.pemodalId === selectedPemodalAdd.id)
+                      .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+
+                    const totalDisetorSaatIni = selectedPemodalAdd.jumlahModal + totalTambah;
+                    const sisaModalSaatIni = totalDisetorSaatIni - totalWD;
+
+                    return (
+                      <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Modal Awal Setor:</span>
+                          <span className="font-bold text-slate-800">{formatRupiah(selectedPemodalAdd.jumlahModal)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Total Pernah Ditambah:</span>
+                          <span className="font-bold text-blue-600">+{formatRupiah(totalTambah)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs border-t border-emerald-200 pt-1 mt-1">
+                          <span className="text-slate-700 font-bold">Total Disetor (Bruto):</span>
+                          <span className="font-black text-emerald-700">{formatRupiah(totalDisetorSaatIni)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penambahan Modal</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={formAddModal.tanggal} 
+                      onChange={(e) => setFormAddModal({ ...formAddModal, tanggal: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Modal Ditambah (Rp)</label>
+                    <input 
+                      type="number" 
+                      inputMode="numeric"
+                      required 
+                      placeholder="e.g. 20000000" 
+                      value={formAddModal.jumlahTambah} 
+                      onChange={(e) => setFormAddModal({ ...formAddModal, jumlahTambah: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-600 bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan Penambahan</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Tambahan modal usaha tahap 2" 
+                      value={formAddModal.catatan} 
+                      onChange={(e) => setFormAddModal({ ...formAddModal, catatan: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setSelectedPemodalAdd(null)} 
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-3 rounded-xl"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={loading} 
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
+                    >
+                      Konfirmasi Tambah ➔
                     </button>
                   </div>
                 </form>
@@ -1342,7 +1555,7 @@
                   </div>
 
                   <div className="p-3 space-y-2.5">
-                    {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 && filteredWithdrawalList.length === 0 ? (
+                    {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 && filteredWithdrawalList.length === 0 && filteredAdditionList.length === 0 ? (
                       <p className="text-center py-6 text-xs text-slate-400">Belum ada mutasi arus kas.</p>
                     ) : (
                       (() => {
@@ -1357,6 +1570,16 @@
                             title: `Investasi Setor (${p.namaPemodal})`,
                             subTitle: `Kontak: ${p.kontak}`,
                             kasMasuk: p.jumlahModal,
+                            kasKeluar: 0
+                          })),
+                          ...filteredAdditionList.map(a => ({
+                            type: 'ADDITION',
+                            id: a.id,
+                            codeId: 'INV-TAMBAH',
+                            date: a.tanggal,
+                            title: `Tambah Modal (${a.namaPemodal})`,
+                            subTitle: `Catatan: ${a.catatan}`,
+                            kasMasuk: a.jumlahTambah,
                             kasKeluar: 0
                           })),
                           ...filteredWithdrawalList.map(w => ({
@@ -1389,6 +1612,7 @@
                               <div className="flex justify-between items-center">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
                                   item.type === 'PEMODAL' ? 'bg-blue-100 text-blue-800' :
+                                  item.type === 'ADDITION' ? 'bg-emerald-100 text-emerald-800' :
                                   item.type === 'WITHDRAWAL' ? 'bg-red-100 text-red-800' : 'bg-slate-200 text-slate-800'
                                 }`}>
                                   {item.codeId}
@@ -1497,7 +1721,7 @@
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Modal Aktif</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Modal Aktif (Net)</span>
                     <p className="text-base sm:text-2xl font-black text-slate-800 mt-1">{formatRupiah(totalModalAktifNet)}</p>
                   </div>
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
@@ -1540,7 +1764,7 @@
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <input type="text" required placeholder="Nama Pemodal / Investor" value={formPemodal.namaPemodal} onChange={(e) => setFormPemodal({ ...formPemodal, namaPemodal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                      <input type="number" inputMode="numeric" required placeholder="Jumlah Modal (Rp)" value={formPemodal.jumlahModal} onChange={(e) => setFormPemodal({ ...formPemodal, jumlahModal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" />
+                      <input type="number" inputMode="numeric" required placeholder="Jumlah Modal Awal (Rp)" value={formPemodal.jumlahModal} onChange={(e) => setFormPemodal({ ...formPemodal, jumlahModal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1551,7 +1775,7 @@
                     <input type="text" placeholder="Catatan / Keterangan (Opsional)" value={formPemodal.catatan} onChange={(e) => setFormPemodal({ ...formPemodal, catatan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
 
                     <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow active:scale-95">
-                      Simpan Pemodal ➔
+                      Simpan Pemodal Baru ➔
                     </button>
                   </form>
 
@@ -1563,11 +1787,16 @@
                       <p className="text-center py-6 text-xs text-slate-400">Belum ada pemodal tersimpan.</p>
                     ) : (
                       pemodalList.map((p) => {
+                        const totalTambahan = additionList
+                          .filter(a => a.pemodalId === p.id)
+                          .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
                         const totalDitarik = withdrawalList
                           .filter(w => w.pemodalId === p.id)
                           .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
                         
-                        const modalAktif = p.jumlahModal - totalDitarik;
+                        const modalDisetorTotal = p.jumlahModal + totalTambahan;
+                        const modalAktif = modalDisetorTotal - totalDitarik;
                         const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
                         const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
                         const totalNilaiAkhir = modalAktif + hakLabaNominal;
@@ -1586,15 +1815,15 @@
 
                             <div className="grid grid-cols-2 gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 font-mono">
                               <div>
-                                <span className="text-[9px] text-slate-400 block font-sans">Modal Awal:</span>
-                                <span className="font-semibold text-slate-700">{formatRupiah(p.jumlahModal)}</span>
+                                <span className="text-[9px] text-slate-400 block font-sans">Total Disetor (Bruto):</span>
+                                <span className="font-semibold text-slate-700">{formatRupiah(modalDisetorTotal)}</span>
                               </div>
                               <div>
                                 <span className="text-[9px] text-slate-400 block font-sans">Total Ditarik:</span>
                                 <span className="font-bold text-red-600">-{formatRupiah(totalDitarik)}</span>
                               </div>
                               <div>
-                                <span className="text-[9px] text-slate-400 block font-sans">Modal Aktif:</span>
+                                <span className="text-[9px] text-slate-400 block font-sans">Sisa Modal Aktif:</span>
                                 <span className="font-black text-slate-900">{formatRupiah(modalAktif)}</span>
                               </div>
                               <div>
@@ -1611,16 +1840,22 @@
 
                               <div>
                                 {currentUser.role === 'Admin' ? (
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1">
+                                    <button 
+                                      onClick={() => setSelectedPemodalAdd(p)} 
+                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-1.5 rounded-lg text-[10px] font-bold"
+                                    >
+                                      ➕ Tambah
+                                    </button>
                                     <button 
                                       onClick={() => setSelectedPemodalWithdraw(p)} 
-                                      className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2.5 py-1.5 rounded-lg text-[10px] font-bold"
+                                      className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1.5 rounded-lg text-[10px] font-bold"
                                     >
-                                      💸 Tarik Modal
+                                      💸 Tarik
                                     </button>
                                     <button 
                                       onClick={() => handleDeletePemodal(p.id)} 
-                                      className="p-1.5 text-red-500 hover:text-red-700 font-bold"
+                                      className="p-1 text-red-500 hover:text-red-700 font-bold"
                                     >
                                       🗑️
                                     </button>
@@ -1635,6 +1870,29 @@
                       })
                     )}
                   </div>
+
+                  {/* RIWAYAT PENAMBAHAN MODAL */}
+                  {additionList.length > 0 && (
+                    <div className="p-3 sm:p-6 border-t border-slate-200 bg-slate-50/50 space-y-2">
+                      <h3 className="text-xs font-bold text-slate-700 uppercase">➕ Riwayat Penambahan Modal</h3>
+                      <div className="space-y-2">
+                        {additionList.map((a) => (
+                          <div key={a.id} className="p-2.5 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs">
+                            <div>
+                              <p className="font-bold text-slate-800">{a.namaPemodal}</p>
+                              <p className="text-[10px] text-slate-400">{a.tanggal} • {a.catatan}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-emerald-600">+{formatRupiah(a.jumlahTambah)}</span>
+                              {currentUser.role === 'Admin' && (
+                                <button onClick={() => handleDeleteAddition(a.id)} className="text-red-500 hover:text-red-700">🗑️</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* RIWAYAT PENARIKAN MODAL */}
                   {withdrawalList.length > 0 && (
@@ -2030,7 +2288,6 @@
                             </div>
                           </div>
 
-                          {/* INFORMASI HARGA BELI & HARGA JUAL SATUAN */}
                           <div className="grid grid-cols-2 gap-1 text-[10px] bg-slate-100/70 p-2 rounded-lg font-mono">
                             <div>
                               <span className="block text-[9px] text-slate-400 font-sans">Harga Beli /g:</span>
