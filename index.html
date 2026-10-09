@@ -86,9 +86,10 @@
       const [newCatCode, setNewCatCode] = useState('');
       const [newCatName, setNewCatName] = useState('');
 
-      // NISBAH PENGELOLA (DEFAULT 0% -> KEUNTONGAN 100% BAGI PEMODAL)
+      // NISBAH PENGELOLA (%)
       const [nisbahPengelolaPct, setNisbahPengelolaPct] = useState(0);
 
+      // STATE FILTER TANGGAL/BULAN BAGI HASIL PEMODAL
       const getTodayFormatted = () => {
         const now = new Date();
         const y = now.getFullYear();
@@ -96,6 +97,18 @@
         const d = String(now.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
       };
+
+      const getCurrentMonthFormatted = () => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+      };
+
+      const [pemodalFilterType, setPemodalFilterType] = useState('ALL'); // 'ALL', 'MONTH', 'RANGE'
+      const [pemodalFilterMonth, setPemodalFilterMonth] = useState(getCurrentMonthFormatted());
+      const [pemodalStartDate, setPemodalStartDate] = useState('');
+      const [pemodalEndDate, setPemodalEndDate] = useState('');
 
       const [formPemodal, setFormPemodal] = useState({
         namaPemodal: '',
@@ -536,10 +549,29 @@
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
-      // KALKULASI PEMBAGIAN HASIL PEMODAL
+      // FITUR FILTER LABA KHUSUS UNTUK MENU PEMODAL
+      const pemodalFilteredTransactions = transactions.filter(t => {
+        if (t.status !== 'TERJUAL') return false;
+        const tDate = t.tanggalPenjualan || t.tanggalAmbil;
+
+        if (pemodalFilterType === 'MONTH') {
+          if (!pemodalFilterMonth || !tDate) return true;
+          return tDate.startsWith(pemodalFilterMonth);
+        } else if (pemodalFilterType === 'RANGE') {
+          if (!tDate) return false;
+          if (pemodalStartDate && tDate < pemodalStartDate) return false;
+          if (pemodalEndDate && tDate > pemodalEndDate) return false;
+          return true;
+        }
+        return true; // Mode 'ALL'
+      });
+
+      const pemodalTotalLabaPeriod = pemodalFilteredTransactions.reduce((acc, t) => acc + (t.totalUntung || 0), 0);
+
+      // KALKULASI BAGI HASIL PEMODAL
       const totalModalInvestasi = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
-      const bagianPengelolaNominal = (totalLabaBersih * nisbahPengelolaPct) / 100;
-      const totalLabaUntukPemodal = totalLabaBersih - bagianPengelolaNominal;
+      const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
+      const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
 
       const pendingOlahList = transactions.filter(t => t.status === 'MENUNGGU_OLAH');
       const pendingJualList = transactions.filter(t => t.status === 'SELESAI_OLAH');
@@ -777,6 +809,80 @@
             {/* TAB INPUT PEMODAL & BAGI HASIL AUTOMATIS */}
             {activeTab === 'pemodal' && (
               <div className="max-w-5xl mx-auto space-y-6">
+                {/* PANEL FILTER PERIODE BULAN & TANGGAL LABA */}
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm">📅 Filter Periode Laba untuk Bagi Hasil</h3>
+                      <p className="text-xs text-slate-500">Pilih periode transaksi penjualan yang akan dibagikan ke pemodal.</p>
+                    </div>
+
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button
+                        onClick={() => setPemodalFilterType('ALL')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          pemodalFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Semua Periode
+                      </button>
+                      <button
+                        onClick={() => setPemodalFilterType('MONTH')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          pemodalFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Per Bulan
+                      </button>
+                      <button
+                        onClick={() => setPemodalFilterType('RANGE')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+                          pemodalFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Rentang Tanggal
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* FORM INPUT FILTER DINAMIS */}
+                  {pemodalFilterType === 'MONTH' && (
+                    <div className="flex items-center gap-3 bg-amber-50/50 p-3 rounded-lg border border-amber-200/60 max-w-sm">
+                      <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Pilih Bulan & Tahun:</label>
+                      <input
+                        type="month"
+                        value={pemodalFilterMonth}
+                        onChange={(e) => setPemodalFilterMonth(e.target.value)}
+                        className="px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  )}
+
+                  {pemodalFilterType === 'RANGE' && (
+                    <div className="flex flex-col sm:flex-row items-center gap-3 bg-amber-50/50 p-3 rounded-lg border border-amber-200/60">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-700">Mulai:</label>
+                        <input
+                          type="date"
+                          value={pemodalStartDate}
+                          onChange={(e) => setPemodalStartDate(e.target.value)}
+                          className="px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-slate-400">s/d</span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-700">Selesai:</label>
+                        <input
+                          type="date"
+                          value={pemodalEndDate}
+                          onChange={(e) => setPemodalEndDate(e.target.value)}
+                          className="px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* RINGKASAN METRIK BAGI HASIL */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
@@ -785,12 +891,12 @@
                     <span className="text-[11px] text-slate-500 mt-1 block">{pemodalList.length} Investor Aktif</span>
                   </div>
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Laba Bersih Terjual</span>
-                    <p className="text-2xl font-black text-amber-600 mt-1">{formatRupiah(totalLabaBersih)}</p>
-                    <span className="text-[11px] text-slate-500 mt-1 block">Dari transaksi penjualan</span>
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Laba Terjual (Periode Ini)</span>
+                    <p className="text-2xl font-black text-amber-600 mt-1">{formatRupiah(pemodalTotalLabaPeriod)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">{pemodalFilteredTransactions.length} Transaksi Terjual</span>
                   </div>
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Laba Bagian Investor</span>
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Laba Bagian Investor</span>
                     <p className="text-2xl font-black text-emerald-600 mt-1">{formatRupiah(totalLabaUntukPemodal)}</p>
                     <span className="text-[11px] text-slate-500 mt-1 block">Siap dibagi proporsional</span>
                   </div>
@@ -859,7 +965,12 @@
 
                   {/* TABEL KALKULASI PROPORSI HAK LABA/RUGI PEMODAL */}
                   <div className="p-6 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tabel Rincian Pembagian Laba Per Pemodal</h3>
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tabel Rincian Pembagian Laba Per Pemodal</h3>
+                      <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                        Periode Hitung: {pemodalFilterType === 'ALL' ? 'Semua Waktu' : pemodalFilterType === 'MONTH' ? `Bulan ${pemodalFilterMonth}` : `${pemodalStartDate || 'Awal'} s/d ${pemodalEndDate || 'Akhir'}`}
+                      </span>
+                    </div>
 
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
