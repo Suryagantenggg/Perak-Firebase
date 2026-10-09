@@ -86,7 +86,9 @@
       const [newCatCode, setNewCatCode] = useState('');
       const [newCatName, setNewCatName] = useState('');
 
-      // FORM PEMODAL BARU
+      // NISBAH PENGELOLA (DEFAULT 0% -> KEUNTONGAN 100% BAGI PEMODAL)
+      const [nisbahPengelolaPct, setNisbahPengelolaPct] = useState(0);
+
       const getTodayFormatted = () => {
         const now = new Date();
         const y = now.getFullYear();
@@ -252,7 +254,6 @@
         }
       };
 
-      // MENAMBAH PEMODAL KE FIRESTORE
       const handleSavePemodal = async (e) => {
         e.preventDefault();
         const modalNominal = parseFloat(formPemodal.jumlahModal) || 0;
@@ -535,7 +536,10 @@
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
+      // KALKULASI PEMBAGIAN HASIL PEMODAL
       const totalModalInvestasi = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
+      const bagianPengelolaNominal = (totalLabaBersih * nisbahPengelolaPct) / 100;
+      const totalLabaUntukPemodal = totalLabaBersih - bagianPengelolaNominal;
 
       const pendingOlahList = transactions.filter(t => t.status === 'MENUNGGU_OLAH');
       const pendingJualList = transactions.filter(t => t.status === 'SELESAI_OLAH');
@@ -747,7 +751,7 @@
                     activeTab === 'pemodal' ? 'border-amber-500 text-amber-400 bg-slate-900/50' : 'border-transparent text-slate-300 hover:text-white'
                   }`}
                 >
-                  🤝 Pemodal ({pemodalList.length})
+                  🤝 Pemodal & Bagi Hasil ({pemodalList.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('categories')}
@@ -770,15 +774,54 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-4 py-8">
-            {/* TAB INPUT PEMODAL */}
+            {/* TAB INPUT PEMODAL & BAGI HASIL AUTOMATIS */}
             {activeTab === 'pemodal' && (
-              <div className="max-w-4xl mx-auto space-y-6">
+              <div className="max-w-5xl mx-auto space-y-6">
+                {/* RINGKASAN METRIK BAGI HASIL */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Modal Terkumpul</span>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{formatRupiah(totalModalInvestasi)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">{pemodalList.length} Investor Aktif</span>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Laba Bersih Terjual</span>
+                    <p className="text-2xl font-black text-amber-600 mt-1">{formatRupiah(totalLabaBersih)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Dari transaksi penjualan</span>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Total Laba Bagian Investor</span>
+                    <p className="text-2xl font-black text-emerald-600 mt-1">{formatRupiah(totalLabaUntukPemodal)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Siap dibagi proporsional</span>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-400 uppercase">Hak Pengelola ({nisbahPengelolaPct}%)</span>
+                    <p className="text-2xl font-black text-blue-600 mt-1">{formatRupiah(bagianPengelolaNominal)}</p>
+                    <span className="text-[11px] text-slate-500 mt-1 block">Operational Management Fee</span>
+                  </div>
+                </div>
+
                 <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-6">
-                    <h2 className="text-lg font-bold">🤝 Input & Kelola Pemodal (Investor)</h2>
-                    <p className="text-xs text-slate-400 mt-1">Data pemodal akan tersimpan secara terpisah di tabel Firestore "pemodal".</p>
+                  <div className="bg-slate-900 text-white p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <h2 className="text-lg font-bold">🤝 Input & Kelola Pemodal (Investor)</h2>
+                      <p className="text-xs text-slate-400 mt-1">Data pemodal & kalkulasi pembagian hasil usaha otomatis secara proporsional.</p>
+                    </div>
+
+                    <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 flex items-center gap-3">
+                      <label className="text-xs font-bold text-slate-300">Nisbah Pengelola (%):</label>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        value={nisbahPengelolaPct} 
+                        onChange={(e) => setNisbahPengelolaPct(parseFloat(e.target.value) || 0)} 
+                        className="w-16 px-2 py-1 text-xs font-bold text-center bg-slate-900 border border-slate-600 rounded text-amber-400 outline-none" 
+                      />
+                    </div>
                   </div>
 
+                  {/* FORM INPUT PEMODAL BARU */}
                   <form onSubmit={handleSavePemodal} className="p-6 bg-slate-50 border-b border-slate-200 space-y-4">
                     <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tambah Data Pemodal Baru</h3>
                     
@@ -806,7 +849,7 @@
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan (Opsional)</label>
-                      <input type="text" placeholder="e.g. Bagi hasil 20%, kontrak 6 bulan" value={formPemodal.catatan} onChange={(e) => setFormPemodal({ ...formPemodal, catatan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      <input type="text" placeholder="e.g. Bagi hasil proporsional" value={formPemodal.catatan} onChange={(e) => setFormPemodal({ ...formPemodal, catatan: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
                     </div>
 
                     <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg shadow">
@@ -814,47 +857,73 @@
                     </button>
                   </form>
 
+                  {/* TABEL KALKULASI PROPORSI HAK LABA/RUGI PEMODAL */}
                   <div className="p-6 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Daftar Pemodal Aktif</h3>
-                      <div className="text-right">
-                        <span className="text-xs text-slate-500 font-bold block">Total Modal Terkumpul:</span>
-                        <span className="text-lg font-black text-emerald-600">{formatRupiah(totalModalInvestasi)}</span>
-                      </div>
-                    </div>
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tabel Rincian Pembagian Laba Per Pemodal</h3>
 
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
                           <tr>
                             <th className="px-3 py-3">Nama Pemodal</th>
-                            <th className="px-3 py-3">Tgl Bergabung</th>
-                            <th className="px-3 py-3 text-right">Jumlah Modal</th>
-                            <th className="px-3 py-3">Kontak</th>
-                            <th className="px-3 py-3">Catatan</th>
+                            <th className="px-3 py-3">Tgl Masuk</th>
+                            <th className="px-3 py-3 text-right">Modal Disetor (Rp)</th>
+                            <th className="px-3 py-3 text-center">Porsi Modal (%)</th>
+                            <th className="px-3 py-3 text-right">Hak Laba Bersih (Rp)</th>
+                            <th className="px-3 py-3 text-right">Total Nilai Akhir (Rp)</th>
                             <th className="px-3 py-3 text-center">Aksi</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {pemodalList.length === 0 ? (
                             <tr>
-                              <td colSpan="6" className="text-center py-6 text-slate-400">Belum ada data pemodal tersimpan.</td>
+                              <td colSpan="7" className="text-center py-6 text-slate-400">Belum ada data pemodal tersimpan.</td>
                             </tr>
                           ) : (
-                            pemodalList.map((p) => (
-                              <tr key={p.id} className="hover:bg-slate-50">
-                                <td className="px-3 py-3 font-bold text-slate-800">{p.namaPemodal}</td>
-                                <td className="px-3 py-3">{p.tanggalBergabung}</td>
-                                <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold">{formatRupiah(p.jumlahModal)}</td>
-                                <td className="px-3 py-3">{p.kontak}</td>
-                                <td className="px-3 py-3 text-slate-500">{p.catatan}</td>
-                                <td className="px-3 py-3 text-center">
-                                  <button onClick={() => handleDeletePemodal(p.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️</button>
-                                </td>
-                              </tr>
-                            ))
+                            pemodalList.map((p) => {
+                              const porsiPct = totalModalInvestasi > 0 ? ((p.jumlahModal / totalModalInvestasi) * 100) : 0;
+                              const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
+                              const totalNilaiAkhir = p.jumlahModal + hakLabaNominal;
+
+                              return (
+                                <tr key={p.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-3 font-bold text-slate-800">
+                                    {p.namaPemodal}
+                                    <span className="block text-[10px] text-slate-400 font-normal">📞 {p.kontak}</span>
+                                  </td>
+                                  <td className="px-3 py-3">{p.tanggalBergabung}</td>
+                                  <td className="px-3 py-3 text-right font-mono font-bold text-slate-700">{formatRupiah(p.jumlahModal)}</td>
+                                  <td className="px-3 py-3 text-center">
+                                    <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[11px]">
+                                      {porsiPct.toFixed(2)}%
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600">
+                                    +{formatRupiah(hakLabaNominal)}
+                                  </td>
+                                  <td className="px-3 py-3 text-right font-mono font-black text-slate-900">
+                                    {formatRupiah(totalNilaiAkhir)}
+                                  </td>
+                                  <td className="px-3 py-3 text-center">
+                                    <button onClick={() => handleDeletePemodal(p.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️</button>
+                                  </td>
+                                </tr>
+                              );
+                            })
                           )}
                         </tbody>
+                        {pemodalList.length > 0 && (
+                          <tfoot className="bg-slate-100 font-bold text-slate-800 border-t-2 border-slate-300">
+                            <tr>
+                              <td colSpan="2" className="px-3 py-3 text-right uppercase text-[10px]">Total Akumulasi:</td>
+                              <td className="px-3 py-3 text-right font-mono text-slate-900">{formatRupiah(totalModalInvestasi)}</td>
+                              <td className="px-3 py-3 text-center">100%</td>
+                              <td className="px-3 py-3 text-right font-mono text-emerald-600">+{formatRupiah(totalLabaUntukPemodal)}</td>
+                              <td className="px-3 py-3 text-right font-mono text-slate-900">{formatRupiah(totalModalInvestasi + totalLabaUntukPemodal)}</td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        )}
                       </table>
                     </div>
                   </div>
