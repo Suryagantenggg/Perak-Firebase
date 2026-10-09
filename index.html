@@ -86,10 +86,8 @@
       const [newCatCode, setNewCatCode] = useState('');
       const [newCatName, setNewCatName] = useState('');
 
-      // NISBAH PENGELOLA (%)
       const [nisbahPengelolaPct, setNisbahPengelolaPct] = useState(0);
 
-      // STATE FILTER TANGGAL/BULAN BAGI HASIL PEMODAL
       const getTodayFormatted = () => {
         const now = new Date();
         const y = now.getFullYear();
@@ -105,7 +103,7 @@
         return `${y}-${m}`;
       };
 
-      const [pemodalFilterType, setPemodalFilterType] = useState('ALL'); // 'ALL', 'MONTH', 'RANGE'
+      const [pemodalFilterType, setPemodalFilterType] = useState('ALL');
       const [pemodalFilterMonth, setPemodalFilterMonth] = useState(getCurrentMonthFormatted());
       const [pemodalStartDate, setPemodalStartDate] = useState('');
       const [pemodalEndDate, setPemodalEndDate] = useState('');
@@ -145,7 +143,6 @@
         }, 100);
       }, []);
 
-      // REALTIME CATEGORIES
       useEffect(() => {
         if (!currentUser) return;
 
@@ -166,7 +163,6 @@
         }, 100);
       }, [currentUser]);
 
-      // REALTIME TRANSACTIONS
       useEffect(() => {
         if (!currentUser) return;
         setLoading(true);
@@ -189,7 +185,6 @@
         }, 100);
       }, [currentUser]);
 
-      // REALTIME PEMODAL
       useEffect(() => {
         if (!currentUser) return;
 
@@ -499,7 +494,6 @@
               tanggalPenjualan: formJual.tanggalJual,
               jumlahJual: t.jumlahMurni,
               hargaJualSatuan: hargaJualVal,
-              totalJual: totalJualItem,
               tokoPembeli: currentUser.nama,
               biayaPenjualan: biayaPenjualanItem,
               totalUntung: totalUntungItem,
@@ -549,7 +543,6 @@
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
-      // FITUR FILTER LABA KHUSUS UNTUK MENU PEMODAL
       const pemodalFilteredTransactions = transactions.filter(t => {
         if (t.status !== 'TERJUAL') return false;
         const tDate = t.tanggalPenjualan || t.tanggalAmbil;
@@ -563,12 +556,11 @@
           if (pemodalEndDate && tDate > pemodalEndDate) return false;
           return true;
         }
-        return true; // Mode 'ALL'
+        return true;
       });
 
       const pemodalTotalLabaPeriod = pemodalFilteredTransactions.reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
-      // KALKULASI BAGI HASIL PEMODAL
       const totalModalInvestasi = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
       const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
       const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
@@ -809,7 +801,6 @@
             {/* TAB INPUT PEMODAL & BAGI HASIL AUTOMATIS */}
             {activeTab === 'pemodal' && (
               <div className="max-w-5xl mx-auto space-y-6">
-                {/* PANEL FILTER PERIODE BULAN & TANGGAL LABA */}
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 pb-3 border-b border-slate-100">
                     <div>
@@ -845,7 +836,6 @@
                     </div>
                   </div>
 
-                  {/* FORM INPUT FILTER DINAMIS */}
                   {pemodalFilterType === 'MONTH' && (
                     <div className="flex items-center gap-3 bg-amber-50/50 p-3 rounded-lg border border-amber-200/60 max-w-sm">
                       <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Pilih Bulan & Tahun:</label>
@@ -883,7 +873,6 @@
                   )}
                 </div>
 
-                {/* RINGKASAN METRIK BAGI HASIL */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <span className="text-xs font-semibold text-slate-400 uppercase">Total Modal Terkumpul</span>
@@ -927,7 +916,6 @@
                     </div>
                   </div>
 
-                  {/* FORM INPUT PEMODAL BARU */}
                   <form onSubmit={handleSavePemodal} className="p-6 bg-slate-50 border-b border-slate-200 space-y-4">
                     <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tambah Data Pemodal Baru</h3>
                     
@@ -963,7 +951,6 @@
                     </button>
                   </form>
 
-                  {/* TABEL KALKULASI PROPORSI HAK LABA/RUGI PEMODAL */}
                   <div className="p-6 space-y-4">
                     <div className="flex justify-between items-center">
                       <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Tabel Rincian Pembagian Laba Per Pemodal</h3>
@@ -1316,6 +1303,8 @@
                         <tr>
                           <th className="px-3 py-3">Kode</th>
                           <th className="px-3 py-3">Tgl Ambil</th>
+                          <th className="px-3 py-3">Tgl Olah</th>
+                          <th className="px-3 py-3">Tgl Jual</th>
                           <th className="px-3 py-3">Deskripsi Brg</th>
                           <th className="px-3 py-3">PIC</th>
                           <th className="px-3 py-3 text-right">Kotor (g)</th>
@@ -1333,6 +1322,8 @@
                           <tr key={t.id} className="hover:bg-slate-50">
                             <td className="px-3 py-3 font-bold">{t.codeId}</td>
                             <td className="px-3 py-3">{t.tanggalAmbil}</td>
+                            <td className="px-3 py-3 text-blue-600 font-semibold">{t.tanggalOlah || '-'}</td>
+                            <td className="px-3 py-3 text-emerald-600 font-semibold">{t.tanggalPenjualan || '-'}</td>
                             <td className="px-3 py-3">{t.kategoriName}</td>
                             <td className="px-3 py-3">{t.pengambil}</td>
                             <td className="px-3 py-3 text-right font-mono">{t.jumlahKotor}</td>
