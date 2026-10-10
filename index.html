@@ -117,6 +117,7 @@
       const [newCatCode, setNewCatCode] = useState('');
       const [newCatName, setNewCatName] = useState('');
 
+      // STATE NISBAH PENGELOLA
       const [nisbahPengelolaPct, setNisbahPengelolaPct] = useState(0);
 
       const getTodayFormatted = () => {
@@ -232,6 +233,44 @@
           }
         }, 100);
       }, []);
+
+      // LISTEN DATA NISBAH PENGELOLA SINKRON REALTIME DARI FIRESTORE
+      useEffect(() => {
+        const checkNisbah = setInterval(() => {
+          if (window.fbDb) {
+            clearInterval(checkNisbah);
+            const { doc, onSnapshot } = window.fbFS;
+            const unsubscribe = onSnapshot(doc(window.fbDb, "settings", "nisbah_pengelola"), (docSnap) => {
+              if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.pct !== undefined) {
+                  setNisbahPengelolaPct(data.pct);
+                }
+              }
+            });
+            return () => unsubscribe();
+          }
+        }, 100);
+      }, []);
+
+      // HANDLER UNTUK MERUBAH DAN MENYIMPAN NISBAH KE FIRESTORE
+      const handleUpdateNisbah = async (newVal) => {
+        const pctVal = parseFloat(newVal) || 0;
+        setNisbahPengelolaPct(pctVal);
+
+        if (currentUser && currentUser.role === 'Admin') {
+          try {
+            const { doc, setDoc } = window.fbFS;
+            await setDoc(doc(window.fbDb, "settings", "nisbah_pengelola"), {
+              pct: pctVal,
+              updatedAt: Date.now(),
+              updatedBy: currentUser.nama
+            });
+          } catch (err) {
+            console.error("Gagal menyimpan nisbah ke Firestore:", err);
+          }
+        }
+      };
 
       // LISTEN DATA CUSTOMER SERVICE DARI FIRESTORE
       useEffect(() => {
@@ -653,7 +692,7 @@
         }
       };
 
-      // SIMPAN PENARIKAN LABA BERSIH (DIVIDEN) DENGAN BATASAN MAKSIMAL
+      // SIMPAN PENARIKAN LABA BERSIH (DIVIDEN) DENGAN BATAS MAKSIMAL
       const handleSaveProfitWithdrawal = async (e) => {
         e.preventDefault();
         if (currentUser.role !== 'Admin') {
@@ -2692,7 +2731,7 @@
                           min="0" 
                           max="100" 
                           value={nisbahPengelolaPct} 
-                          onChange={(e) => setNisbahPengelolaPct(parseFloat(e.target.value) || 0)} 
+                          onChange={(e) => handleUpdateNisbah(e.target.value)} 
                           className="w-16 px-2 py-1 text-xs font-bold text-center bg-slate-900 border border-slate-600 rounded-lg text-amber-400" 
                         />
                       </div>
