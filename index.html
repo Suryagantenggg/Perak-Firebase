@@ -234,26 +234,34 @@
         }, 100);
       }, []);
 
-      // LISTEN DATA NISBAH PENGELOLA SINKRON REALTIME DARI FIRESTORE
+      // LISTEN DATA NISBAH PENGELOLA REALTIME SINKRON DARI FIRESTORE (PERBAIKAN TUNTAS)
       useEffect(() => {
+        let unsub = null;
         const checkNisbah = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkNisbah);
             const { doc, onSnapshot } = window.fbFS;
-            const unsubscribe = onSnapshot(doc(window.fbDb, "settings", "nisbah_pengelola"), (docSnap) => {
+            
+            unsub = onSnapshot(doc(window.fbDb, "settings", "nisbah_pengelola"), (docSnap) => {
               if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data.pct !== undefined) {
-                  setNisbahPengelolaPct(data.pct);
+                  setNisbahPengelolaPct(Number(data.pct) || 0);
                 }
               }
+            }, (err) => {
+              console.error("Listener nisbah error:", err);
             });
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkNisbah);
+          if (unsub) unsub();
+        };
       }, []);
 
-      // HANDLER UNTUK MERUBAH DAN MENYIMPAN NISBAH KE FIRESTORE
+      // HANDLER UNTUK MENGUBAH DAN MENYIMPAN NISBAH LANGSUNG KE FIRESTORE
       const handleUpdateNisbah = async (newVal) => {
         const pctVal = parseFloat(newVal) || 0;
         setNisbahPengelolaPct(pctVal);
@@ -265,20 +273,23 @@
               pct: pctVal,
               updatedAt: Date.now(),
               updatedBy: currentUser.nama
-            });
+            }, { merge: true });
+            showToast(`✅ Nisbah Pengelola disimpan: ${pctVal}%`);
           } catch (err) {
             console.error("Gagal menyimpan nisbah ke Firestore:", err);
+            alert("Gagal menyimpan nisbah ke database!");
           }
         }
       };
 
       // LISTEN DATA CUSTOMER SERVICE DARI FIRESTORE
       useEffect(() => {
+        let unsub = null;
         const checkCs = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkCs);
             const { doc, onSnapshot } = window.fbFS;
-            const unsubscribe = onSnapshot(doc(window.fbDb, "settings", "customer_service"), (docSnap) => {
+            unsub = onSnapshot(doc(window.fbDb, "settings", "customer_service"), (docSnap) => {
               if (docSnap.exists()) {
                 const data = docSnap.data();
                 setCsInfo(data);
@@ -289,27 +300,36 @@
                 });
               }
             });
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkCs);
+          if (unsub) unsub();
+        };
       }, []);
 
       // FETCH DAFTAR USERS (HANYA UNTUK ADMIN)
       useEffect(() => {
         if (!currentUser || currentUser.role !== 'Admin') return;
 
+        let unsub = null;
         const checkUsers = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkUsers);
             const { collection, onSnapshot } = window.fbFS;
-            const unsubscribe = onSnapshot(collection(window.fbDb, "users"), (snapshot) => {
+            unsub = onSnapshot(collection(window.fbDb, "users"), (snapshot) => {
               const list = [];
               snapshot.forEach((docSnap) => list.push({ uid: docSnap.id, ...docSnap.data() }));
               setUserList(list);
             });
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkUsers);
+          if (unsub) unsub();
+        };
       }, [currentUser]);
 
       // SINKRONISASI NAMA LOGIN DENGAN FORM INPUT
@@ -323,126 +343,150 @@
       useEffect(() => {
         if (!currentUser) return;
 
+        let unsub = null;
         const checkCat = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkCat);
             const { collection, query, orderBy, onSnapshot } = window.fbFS;
             const q = query(collection(window.fbDb, "categories"), orderBy("code", "asc"));
 
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            unsub = onSnapshot(q, (snapshot) => {
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
               setCategories(list.length > 0 ? list : DEFAULT_CATEGORIES);
             });
-
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkCat);
+          if (unsub) unsub();
+        };
       }, [currentUser]);
 
       useEffect(() => {
         if (!currentUser) return;
         setLoading(true);
 
+        let unsub = null;
         const checkDB = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkDB);
             const { collection, query, orderBy, onSnapshot } = window.fbFS;
             const q = query(collection(window.fbDb, "transactions"), orderBy("createdAt", "desc"));
 
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            unsub = onSnapshot(q, (snapshot) => {
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
               setTransactions(list);
               setLoading(false);
             });
-
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkDB);
+          if (unsub) unsub();
+        };
       }, [currentUser]);
 
       useEffect(() => {
         if (!currentUser) return;
 
+        let unsub = null;
         const checkPemodal = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkPemodal);
             const { collection, query, orderBy, onSnapshot } = window.fbFS;
             const q = query(collection(window.fbDb, "pemodal"), orderBy("createdAt", "desc"));
 
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            unsub = onSnapshot(q, (snapshot) => {
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
               setPemodalList(list);
             });
-
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkPemodal);
+          if (unsub) unsub();
+        };
       }, [currentUser]);
 
       // FETCH DATA PENARIKAN MODAL
       useEffect(() => {
         if (!currentUser) return;
 
+        let unsub = null;
         const checkWD = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkWD);
             const { collection, query, orderBy, onSnapshot } = window.fbFS;
             const q = query(collection(window.fbDb, "pemodal_withdrawals"), orderBy("createdAt", "desc"));
 
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            unsub = onSnapshot(q, (snapshot) => {
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
               setWithdrawalList(list);
             });
-
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkWD);
+          if (unsub) unsub();
+        };
       }, [currentUser]);
 
       // FETCH DATA PENARIKAN LABA BERSIH (DIVIDEN)
       useEffect(() => {
         if (!currentUser) return;
 
+        let unsub = null;
         const checkPWD = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkPWD);
             const { collection, query, orderBy, onSnapshot } = window.fbFS;
             const q = query(collection(window.fbDb, "pemodal_profit_withdrawals"), orderBy("createdAt", "desc"));
 
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            unsub = onSnapshot(q, (snapshot) => {
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
               setProfitWithdrawalList(list);
             });
-
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkPWD);
+          if (unsub) unsub();
+        };
       }, [currentUser]);
 
       // FETCH DATA PENAMBAHAN MODAL
       useEffect(() => {
         if (!currentUser) return;
 
+        let unsub = null;
         const checkADD = setInterval(() => {
-          if (window.fbDb) {
+          if (window.fbDb && window.fbFS) {
             clearInterval(checkADD);
             const { collection, query, orderBy, onSnapshot } = window.fbFS;
             const q = query(collection(window.fbDb, "pemodal_additions"), orderBy("createdAt", "desc"));
 
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            unsub = onSnapshot(q, (snapshot) => {
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
               setAdditionList(list);
             });
-
-            return () => unsubscribe();
           }
         }, 100);
+
+        return () => {
+          clearInterval(checkADD);
+          if (unsub) unsub();
+        };
       }, [currentUser]);
 
       const handleLoginSubmit = async (e) => {
@@ -1417,8 +1461,8 @@
           return pwDate.startsWith(neracaFilterMonth);
         } else if (neracaFilterType === 'RANGE') {
           if (!pwDate) return false;
-          if (neracaStartDate && pwDate < neracaStartDate) return false;
-          if (neracaEndDate && pwDate > neracaEndDate) return false;
+          if (neracaStartDate && pwDate < pwDate) return false;
+          if (neracaEndDate && pwDate > pwDate) return false;
           return true;
         }
         return true;
@@ -1905,7 +1949,6 @@
                       .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
 
                     const totalDisetorSaatIni = selectedPemodalAdd.jumlahModal + totalTambah;
-                    const sisaModalSaatIni = totalDisetorSaatIni - totalWD;
 
                     return (
                       <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-1">
