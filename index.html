@@ -455,7 +455,6 @@
         }
       };
 
-      // HANDLER RESET PASSWORD SISI PENGGUNA (LUPA PASSWORD)
       const handleForgotPasswordSubmit = async (e) => {
         e.preventDefault();
         if (!forgotEmail.trim()) {
@@ -481,7 +480,6 @@
         }
       };
 
-      // HANDLER ADMIN MENGIRIM LINK RESET PASSWORD KE USER
       const handleAdminResetUserPassword = async (userEmail) => {
         if (!userEmail) return alert("Email pengguna tidak ditemukan!");
 
@@ -547,7 +545,6 @@
         }
       };
 
-      // SIMPAN KONTAK CUSTOMER SERVICE
       const handleSaveCsInfo = async (e) => {
         e.preventDefault();
         if (currentUser.role !== 'Admin') {
@@ -656,7 +653,7 @@
         }
       };
 
-      // SIMPAN PENARIKAN LABA BERSIH (DIVIDEN)
+      // SIMPAN PENARIKAN LABA BERSIH (DIVIDEN) DENGAN BATASAN MAKSIMAL
       const handleSaveProfitWithdrawal = async (e) => {
         e.preventDefault();
         if (currentUser.role !== 'Admin') {
@@ -665,6 +662,30 @@
 
         const nominal = parseFloat(formProfitWithdraw.jumlahTarik) || 0;
         if (!selectedPemodalProfitWD || nominal <= 0) return alert('Nominal penarikan laba harus > 0!');
+
+        // HITUNG BATAS MAKSIMAL SISA LABA YANG BISA DITARIK
+        const totalTambahan = additionList
+          .filter(a => a.pemodalId === selectedPemodalProfitWD.id)
+          .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
+        const totalDitarikModal = withdrawalList
+          .filter(w => w.pemodalId === selectedPemodalProfitWD.id)
+          .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+
+        const modalDisetorTotal = selectedPemodalProfitWD.jumlahModal + totalTambahan;
+        const modalAktif = modalDisetorTotal - totalDitarikModal;
+        const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
+        const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
+
+        const totalLabaSudahDitarik = profitWithdrawalList
+          .filter(pw => pw.pemodalId === selectedPemodalProfitWD.id)
+          .reduce((s, pw) => s + (pw.jumlahTarik || 0), 0);
+
+        const sisaLabaMax = hakLabaNominal - totalLabaSudahDitarik;
+
+        if (nominal > sisaLabaMax) {
+          return alert(`Penarikan gagal! Nominal Rp ${nominal.toLocaleString('id-ID')} melebihi sisa hak laba maksimal (Rp ${Math.max(0, sisaLabaMax).toLocaleString('id-ID')}).`);
+        }
 
         setLoading(true);
         try {
@@ -1398,7 +1419,6 @@
       const pendingOlahList = transactions.filter(t => t.status === 'MENUNGGU_OLAH');
       const pendingJualList = transactions.filter(t => t.status === 'SELESAI_OLAH');
 
-      // TAUTAN WHATSAPP CUSTOMER SERVICE
       const waUrl = `https://wa.me/${csInfo.noWa || '6281234567890'}?text=${encodeURIComponent(csInfo.pesanDefault || 'Halo, saya tertarik berinvestasi.')}`;
 
       if (!currentUser) {
@@ -1595,7 +1615,7 @@
             </div>
           )}
 
-          {/* MODAL FORM PENARIKAN LABA BERSIH (DIVIDEN) */}
+          {/* MODAL FORM PENARIKAN LABA BERSIH (DIVIDEN) DENGAN BATAS MAKSIMAL */}
           {selectedPemodalProfitWD && currentUser.role === 'Admin' && (
             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
               <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-none duration-200">
@@ -1612,28 +1632,28 @@
                   </button>
                 </div>
 
-                <form onSubmit={handleSaveProfitWithdrawal} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
-                  {(() => {
-                    const totalTambahan = additionList
-                      .filter(a => a.pemodalId === selectedPemodalProfitWD.id)
-                      .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+                {(() => {
+                  const totalTambahan = additionList
+                    .filter(a => a.pemodalId === selectedPemodalProfitWD.id)
+                    .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
 
-                    const totalDitarik = withdrawalList
-                      .filter(w => w.pemodalId === selectedPemodalProfitWD.id)
-                      .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+                  const totalDitarikModal = withdrawalList
+                    .filter(w => w.pemodalId === selectedPemodalProfitWD.id)
+                    .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
 
-                    const modalDisetorTotal = selectedPemodalProfitWD.jumlahModal + totalTambahan;
-                    const modalAktif = modalDisetorTotal - totalDitarik;
-                    const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
-                    const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
+                  const modalDisetorTotal = selectedPemodalProfitWD.jumlahModal + totalTambahan;
+                  const modalAktif = modalDisetorTotal - totalDitarikModal;
+                  const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
+                  const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
 
-                    const totalLabaDitarik = profitWithdrawalList
-                      .filter(pw => pw.pemodalId === selectedPemodalProfitWD.id)
-                      .reduce((s, pw) => s + (pw.jumlahTarik || 0), 0);
+                  const totalLabaDitarik = profitWithdrawalList
+                    .filter(pw => pw.pemodalId === selectedPemodalProfitWD.id)
+                    .reduce((s, pw) => s + (pw.jumlahTarik || 0), 0);
 
-                    const sisaLabaBelumDitarik = hakLabaNominal - totalLabaDitarik;
+                  const sisaLabaBelumDitarik = Math.max(0, hakLabaNominal - totalLabaDitarik);
 
-                    return (
+                  return (
+                    <form onSubmit={handleSaveProfitWithdrawal} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
                       <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="text-slate-500 font-medium">Porsi Penyertaan Modal:</span>
@@ -1648,65 +1668,68 @@
                           <span className="font-bold text-red-600">-{formatRupiah(totalLabaDitarik)}</span>
                         </div>
                         <div className="flex justify-between text-xs border-t border-emerald-200 pt-1 mt-1">
-                          <span className="text-slate-700 font-bold">Sisa Laba Siap Ditarik:</span>
+                          <span className="text-slate-700 font-bold">Maksimal Laba Boleh Ditarik:</span>
                           <span className="font-black text-emerald-800">{formatRupiah(sisaLabaBelumDitarik)}</span>
                         </div>
                       </div>
-                    );
-                  })()}
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penarikan Laba</label>
-                    <input 
-                      type="date" 
-                      required 
-                      value={formProfitWithdraw.tanggal} 
-                      onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, tanggal: e.target.value })} 
-                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
-                    />
-                  </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penarikan Laba</label>
+                        <input 
+                          type="date" 
+                          required 
+                          value={formProfitWithdraw.tanggal} 
+                          onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, tanggal: e.target.value })} 
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Laba Ditarik (Rp)</label>
-                    <input 
-                      type="number" 
-                      inputMode="numeric"
-                      required 
-                      placeholder="e.g. 5000000" 
-                      value={formProfitWithdraw.jumlahTarik} 
-                      onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, jumlahTarik: e.target.value })} 
-                      className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" 
-                    />
-                  </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                          Jumlah Laba Ditarik (Maks: {formatRupiah(sisaLabaBelumDitarik)})
+                        </label>
+                        <input 
+                          type="number" 
+                          inputMode="numeric"
+                          max={sisaLabaBelumDitarik}
+                          required 
+                          placeholder={`Maksimal ${sisaLabaBelumDitarik}`}
+                          value={formProfitWithdraw.jumlahTarik} 
+                          onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, jumlahTarik: e.target.value })} 
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" 
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan Penarikan</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Penarikan dividen bulanan" 
-                      value={formProfitWithdraw.catatan} 
-                      onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, catatan: e.target.value })} 
-                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
-                    />
-                  </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan Penarikan</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Penarikan dividen bulanan" 
+                          value={formProfitWithdraw.catatan} 
+                          onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, catatan: e.target.value })} 
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                        />
+                      </div>
 
-                  <div className="flex gap-3 pt-2">
-                    <button 
-                      type="button" 
-                      onClick={() => setSelectedPemodalProfitWD(null)} 
-                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-3 rounded-xl"
-                    >
-                      Batal
-                    </button>
-                    <button 
-                      type="submit" 
-                      disabled={loading} 
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
-                    >
-                      Konfirmasi Penarikan ➔
-                    </button>
-                  </div>
-                </form>
+                      <div className="flex gap-3 pt-2">
+                        <button 
+                          type="button" 
+                          onClick={() => setSelectedPemodalProfitWD(null)} 
+                          className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-3 rounded-xl"
+                        >
+                          Batal
+                        </button>
+                        <button 
+                          type="submit" 
+                          disabled={loading} 
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
+                        >
+                          Konfirmasi Penarikan ➔
+                        </button>
+                      </div>
+                    </form>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -2060,7 +2083,6 @@
             {/* TAB EDUKASI FLOW BISNIS & DORONGAN INVESTASI */}
             {activeTab === 'flow_info' && (
               <div className="max-w-5xl mx-auto space-y-6">
-                {/* HERO PROMOTIONAL BANNER */}
                 <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-500/30 relative overflow-hidden">
                   <div className="relative z-10 space-y-3">
                     <span className="bg-amber-500 text-slate-900 text-[10px] sm:text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
@@ -2089,7 +2111,6 @@
                   </div>
                 </div>
 
-                {/* FLOW PROSES BISNIS (4 TAHAP) */}
                 <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200 space-y-4">
                   <div className="border-b border-slate-100 pb-3">
                     <h3 className="font-extrabold text-slate-800 text-base sm:text-lg flex items-center gap-2">
@@ -2101,7 +2122,6 @@
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    {/* TAHAP 1 */}
                     <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 space-y-2 relative">
                       <div className="w-8 h-8 bg-amber-500 text-slate-900 font-black rounded-xl flex items-center justify-center text-sm">
                         1
@@ -2115,7 +2135,6 @@
                       </span>
                     </div>
 
-                    {/* TAHAP 2 */}
                     <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-200/80 space-y-2 relative">
                       <div className="w-8 h-8 bg-blue-600 text-white font-black rounded-xl flex items-center justify-center text-sm">
                         2
@@ -2129,7 +2148,6 @@
                       </span>
                     </div>
 
-                    {/* TAHAP 3 */}
                     <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-2 relative">
                       <div className="w-8 h-8 bg-emerald-600 text-white font-black rounded-xl flex items-center justify-center text-sm">
                         3
@@ -2143,7 +2161,6 @@
                       </span>
                     </div>
 
-                    {/* TAHAP 4 */}
                     <div className="bg-slate-100 p-4 rounded-2xl border border-slate-300 space-y-2 relative">
                       <div className="w-8 h-8 bg-slate-900 text-amber-400 font-black rounded-xl flex items-center justify-center text-sm">
                         4
@@ -2159,7 +2176,6 @@
                   </div>
                 </div>
 
-                {/* KEUNGGULAN BERINVESTASI */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
                     <div className="text-2xl">📈</div>
@@ -2186,7 +2202,6 @@
                   </div>
                 </div>
 
-                {/* CALL TO ACTION CS & INVESTASI */}
                 <div className="bg-emerald-600 text-white rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-xl relative overflow-hidden">
                   <div className="space-y-2 relative z-10">
                     <span className="bg-emerald-900/60 text-emerald-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
@@ -2215,7 +2230,6 @@
             {/* TAB KONTROL USER & INFORMASI CS (ADMIN ONLY) */}
             {activeTab === 'users' && currentUser.role === 'Admin' && (
               <div className="max-w-4xl mx-auto space-y-6">
-                {/* FORM REGISTRASI / EDIT KONTAK CUSTOMER SERVICE */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="bg-emerald-800 text-white p-4 sm:p-6 flex justify-between items-center">
                     <div>
@@ -2281,7 +2295,6 @@
                   </form>
                 </div>
 
-                {/* KONTROL PENGGUNA */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="bg-slate-900 text-white p-4 sm:p-6 flex justify-between items-center">
                     <div>
