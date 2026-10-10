@@ -97,6 +97,7 @@
       const [categories, setCategories] = useState([]);
       const [pemodalList, setPemodalList] = useState([]);
       const [withdrawalList, setWithdrawalList] = useState([]);
+      const [profitWithdrawalList, setProfitWithdrawalList] = useState([]);
       const [additionList, setAdditionList] = useState([]);
       const [userList, setUserList] = useState([]);
 
@@ -168,9 +169,17 @@
         catatan: ''
       });
 
-      // STATE MODAL PENARIKAN MODAL
+      // STATE MODAL PENARIKAN MODAL UTAMA
       const [selectedPemodalWithdraw, setSelectedPemodalWithdraw] = useState(null);
       const [formWithdraw, setFormWithdraw] = useState({
+        tanggal: getTodayFormatted(),
+        jumlahTarik: '',
+        catatan: ''
+      });
+
+      // STATE MODAL PENARIKAN LABA BERSIH INVESTOR (DIVIDEN)
+      const [selectedPemodalProfitWD, setSelectedPemodalProfitWD] = useState(null);
+      const [formProfitWithdraw, setFormProfitWithdraw] = useState({
         tanggal: getTodayFormatted(),
         jumlahTarik: '',
         catatan: ''
@@ -348,6 +357,27 @@
               const list = [];
               snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
               setWithdrawalList(list);
+            });
+
+            return () => unsubscribe();
+          }
+        }, 100);
+      }, [currentUser]);
+
+      // FETCH DATA PENARIKAN LABA BERSIH (DIVIDEN)
+      useEffect(() => {
+        if (!currentUser) return;
+
+        const checkPWD = setInterval(() => {
+          if (window.fbDb) {
+            clearInterval(checkPWD);
+            const { collection, query, orderBy, onSnapshot } = window.fbFS;
+            const q = query(collection(window.fbDb, "pemodal_profit_withdrawals"), orderBy("createdAt", "desc"));
+
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+              const list = [];
+              snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+              setProfitWithdrawalList(list);
             });
 
             return () => unsubscribe();
@@ -626,6 +656,37 @@
         }
       };
 
+      // SIMPAN PENARIKAN LABA BERSIH (DIVIDEN)
+      const handleSaveProfitWithdrawal = async (e) => {
+        e.preventDefault();
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
+        const nominal = parseFloat(formProfitWithdraw.jumlahTarik) || 0;
+        if (!selectedPemodalProfitWD || nominal <= 0) return alert('Nominal penarikan laba harus > 0!');
+
+        setLoading(true);
+        try {
+          const { collection, addDoc } = window.fbFS;
+          await addDoc(collection(window.fbDb, "pemodal_profit_withdrawals"), {
+            pemodalId: selectedPemodalProfitWD.id,
+            namaPemodal: selectedPemodalProfitWD.namaPemodal,
+            tanggal: formProfitWithdraw.tanggal,
+            jumlahTarik: nominal,
+            catatan: formProfitWithdraw.catatan.trim() || '-',
+            createdAt: Date.now()
+          });
+          setLoading(false);
+          showToast('💰 Penarikan Laba Bersih berhasil dicatat!');
+          setSelectedPemodalProfitWD(null);
+          setFormProfitWithdraw({ tanggal: getTodayFormatted(), jumlahTarik: '', catatan: '' });
+        } catch (err) {
+          setLoading(false);
+          alert('Gagal mencatat penarikan laba: ' + err.message);
+        }
+      };
+
       const handleSaveAddition = async (e) => {
         e.preventDefault();
         if (currentUser.role !== 'Admin') {
@@ -671,6 +732,25 @@
           } catch (err) {
             setLoading(false);
             alert('Gagal menghapus data penarikan modal!');
+          }
+        }
+      };
+
+      const handleDeleteProfitWithdrawal = async (id) => {
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
+        if (window.confirm('Batalkan / Hapus data penarikan laba bersih ini?')) {
+          setLoading(true);
+          try {
+            const { doc, deleteDoc } = window.fbFS;
+            await deleteDoc(doc(window.fbDb, "pemodal_profit_withdrawals", id));
+            setLoading(false);
+            showToast('🗑️ Penarikan laba bersih dibatalkan!');
+          } catch (err) {
+            setLoading(false);
+            alert('Gagal menghapus data penarikan laba!');
           }
         }
       };
@@ -1147,6 +1227,9 @@
             ...withdrawalList.map(w => ({
               code: 'INV-TARIK', date: w.tanggal, title: `Tarik Modal (${w.namaPemodal})`, masuk: 0, keluar: w.jumlahTarik
             })),
+            ...profitWithdrawalList.map(pw => ({
+              code: 'DIVIDEN-TARIK', date: pw.tanggal, title: `Tarik Laba Bersih (${pw.namaPemodal})`, masuk: 0, keluar: pw.jumlahTarik
+            })),
             ...recapFilteredTransactions.map(t => ({
               code: t.codeId, date: t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil, title: `${t.kategoriName} (${t.pengambil})`, masuk: t.totalJual || 0, keluar: (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0)
             }))
@@ -1267,6 +1350,20 @@
         return true;
       });
 
+      const filteredProfitWithdrawalList = profitWithdrawalList.filter(pw => {
+        const pwDate = pw.tanggal;
+        if (neracaFilterType === 'MONTH') {
+          if (!neracaFilterMonth || !pwDate) return true;
+          return pwDate.startsWith(neracaFilterMonth);
+        } else if (neracaFilterType === 'RANGE') {
+          if (!pwDate) return false;
+          if (neracaStartDate && pwDate < neracaStartDate) return false;
+          if (neracaEndDate && pwDate > neracaEndDate) return false;
+          return true;
+        }
+        return true;
+      });
+
       const filteredAdditionList = additionList.filter(a => {
         const aDate = a.tanggal;
         if (neracaFilterType === 'MONTH') {
@@ -1292,8 +1389,9 @@
         return acc + (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0);
       }, 0);
       const totalKasKeluarWithdraw = filteredWithdrawalList.reduce((acc, w) => acc + (w.jumlahTarik || 0), 0);
+      const totalKasKeluarProfitWithdraw = filteredProfitWithdrawalList.reduce((acc, pw) => acc + (pw.jumlahTarik || 0), 0);
 
-      const totalKasKeluar = totalBiayaOperasionalTrx + totalKasKeluarWithdraw;
+      const totalKasKeluar = totalBiayaOperasionalTrx + totalKasKeluarWithdraw + totalKasKeluarProfitWithdraw;
 
       const saldoKasNet = totalKasMasukKeseluruhan - totalKasKeluar;
 
@@ -1494,6 +1592,122 @@
             <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white px-4 text-center">
               <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
               <p className="text-sm font-bold tracking-wider">Menghubungkan ke Firebase Cloud...</p>
+            </div>
+          )}
+
+          {/* MODAL FORM PENARIKAN LABA BERSIH (DIVIDEN) */}
+          {selectedPemodalProfitWD && currentUser.role === 'Admin' && (
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-none duration-200">
+                <div className="bg-emerald-900 text-white p-4 sm:p-5 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm text-amber-400">💰 Penarikan Laba Bersih (Dividen)</h3>
+                    <p className="text-xs text-slate-300 font-semibold">{selectedPemodalProfitWD.namaPemodal}</p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedPemodalProfitWD(null)}
+                    className="text-slate-400 hover:text-white p-2 text-xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveProfitWithdrawal} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                  {(() => {
+                    const totalTambahan = additionList
+                      .filter(a => a.pemodalId === selectedPemodalProfitWD.id)
+                      .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
+                    const totalDitarik = withdrawalList
+                      .filter(w => w.pemodalId === selectedPemodalProfitWD.id)
+                      .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+
+                    const modalDisetorTotal = selectedPemodalProfitWD.jumlahModal + totalTambahan;
+                    const modalAktif = modalDisetorTotal - totalDitarik;
+                    const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
+                    const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
+
+                    const totalLabaDitarik = profitWithdrawalList
+                      .filter(pw => pw.pemodalId === selectedPemodalProfitWD.id)
+                      .reduce((s, pw) => s + (pw.jumlahTarik || 0), 0);
+
+                    const sisaLabaBelumDitarik = hakLabaNominal - totalLabaDitarik;
+
+                    return (
+                      <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Porsi Penyertaan Modal:</span>
+                          <span className="font-bold text-slate-800">{porsiPct.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Hak Laba Bersih Periode Ini:</span>
+                          <span className="font-bold text-emerald-700">+{formatRupiah(hakLabaNominal)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Laba Sudah Ditarik:</span>
+                          <span className="font-bold text-red-600">-{formatRupiah(totalLabaDitarik)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs border-t border-emerald-200 pt-1 mt-1">
+                          <span className="text-slate-700 font-bold">Sisa Laba Siap Ditarik:</span>
+                          <span className="font-black text-emerald-800">{formatRupiah(sisaLabaBelumDitarik)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penarikan Laba</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={formProfitWithdraw.tanggal} 
+                      onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, tanggal: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Laba Ditarik (Rp)</label>
+                    <input 
+                      type="number" 
+                      inputMode="numeric"
+                      required 
+                      placeholder="e.g. 5000000" 
+                      value={formProfitWithdraw.jumlahTarik} 
+                      onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, jumlahTarik: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan Penarikan</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Penarikan dividen bulanan" 
+                      value={formProfitWithdraw.catatan} 
+                      onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, catatan: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setSelectedPemodalProfitWD(null)} 
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-3 rounded-xl"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={loading} 
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
+                    >
+                      Konfirmasi Penarikan ➔
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
@@ -2240,7 +2454,7 @@
                     <p className="text-base sm:text-2xl font-black text-emerald-600 mt-1">{formatRupiah(totalKasMasukPenjualan)}</p>
                   </div>
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Kas Keluar</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Kas Keluar Total</span>
                     <p className="text-base sm:text-2xl font-black text-red-600 mt-1">-{formatRupiah(totalKasKeluar)}</p>
                   </div>
                   <div className="bg-slate-900 text-white p-3.5 sm:p-5 rounded-2xl shadow-md border border-slate-800 col-span-2 sm:col-span-1">
@@ -2255,7 +2469,7 @@
                   </div>
 
                   <div className="p-3 space-y-2.5">
-                    {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 && filteredWithdrawalList.length === 0 && filteredAdditionList.length === 0 ? (
+                    {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 && filteredWithdrawalList.length === 0 && filteredProfitWithdrawalList.length === 0 && filteredAdditionList.length === 0 ? (
                       <p className="text-center py-6 text-xs text-slate-400">Belum ada mutasi arus kas.</p>
                     ) : (
                       (() => {
@@ -2292,6 +2506,16 @@
                             kasMasuk: 0,
                             kasKeluar: w.jumlahTarik
                           })),
+                          ...filteredProfitWithdrawalList.map(pw => ({
+                            type: 'PROFIT_WITHDRAWAL',
+                            id: pw.id,
+                            codeId: 'DIVIDEN-TARIK',
+                            date: pw.tanggal,
+                            title: `Tarik Laba Bersih (${pw.namaPemodal})`,
+                            subTitle: `Catatan: ${pw.catatan}`,
+                            kasMasuk: 0,
+                            kasKeluar: pw.jumlahTarik
+                          })),
                           ...neracaFilteredTransactions.map(t => ({
                             type: 'TRANSAKSI',
                             id: t.id,
@@ -2313,6 +2537,7 @@
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
                                   item.type === 'PEMODAL' ? 'bg-blue-100 text-blue-800' :
                                   item.type === 'ADDITION' ? 'bg-emerald-100 text-emerald-800' :
+                                  item.type === 'PROFIT_WITHDRAWAL' ? 'bg-amber-100 text-amber-800' :
                                   item.type === 'WITHDRAWAL' ? 'bg-red-100 text-red-800' : 'bg-slate-200 text-slate-800'
                                 }`}>
                                   {item.codeId}
@@ -2502,7 +2727,12 @@
                         const modalAktif = modalDisetorTotal - totalDitarik;
                         const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
                         const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
-                        const totalNilaiAkhir = modalAktif + hakLabaNominal;
+
+                        const totalLabaDitarik = profitWithdrawalList
+                          .filter(pw => pw.pemodalId === p.id)
+                          .reduce((s, pw) => s + (pw.jumlahTarik || 0), 0);
+
+                        const sisaLabaBelumDitarik = hakLabaNominal - totalLabaDitarik;
 
                         return (
                           <div key={p.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
@@ -2516,45 +2746,51 @@
                               </span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 font-mono">
-                              <div>
-                                <span className="text-[9px] text-slate-400 block font-sans">Total Disetor (Bruto):</span>
-                                <span className="font-semibold text-slate-700">{formatRupiah(modalDisetorTotal)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[9px] text-slate-400 block font-sans">Total Ditarik:</span>
-                                <span className="font-bold text-red-600">-{formatRupiah(totalDitarik)}</span>
-                              </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 font-mono">
                               <div>
                                 <span className="text-[9px] text-slate-400 block font-sans">Sisa Modal Aktif:</span>
                                 <span className="font-black text-slate-900">{formatRupiah(modalAktif)}</span>
                               </div>
                               <div>
-                                <span className="text-[9px] text-slate-400 block font-sans">Hak Laba:</span>
+                                <span className="text-[9px] text-slate-400 block font-sans">Hak Laba Proporsional:</span>
                                 <span className="font-black text-emerald-600">+{formatRupiah(hakLabaNominal)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-400 block font-sans">Laba Sudah Ditarik:</span>
+                                <span className="font-bold text-red-600">-{formatRupiah(totalLabaDitarik)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-400 block font-sans">Sisa Laba Belum Ditarik:</span>
+                                <span className="font-black text-emerald-800">{formatRupiah(sisaLabaBelumDitarik)}</span>
                               </div>
                             </div>
 
                             <div className="flex justify-between items-center pt-1">
                               <div>
-                                <span className="text-[9px] text-slate-400 block">Total Nilai Akhir:</span>
-                                <span className="font-black text-sm text-slate-900 font-mono">{formatRupiah(totalNilaiAkhir)}</span>
+                                <span className="text-[9px] text-slate-400 block">Total Ekuitas (Modal + Laba Belum Ditarik):</span>
+                                <span className="font-black text-sm text-slate-900 font-mono">{formatRupiah(modalAktif + sisaLabaBelumDitarik)}</span>
                               </div>
 
                               <div>
                                 {currentUser.role === 'Admin' ? (
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <button 
+                                      onClick={() => setSelectedPemodalProfitWD(p)} 
+                                      className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                                    >
+                                      💰 Tarik Laba
+                                    </button>
                                     <button 
                                       onClick={() => setSelectedPemodalAdd(p)} 
                                       className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-1.5 rounded-lg text-[10px] font-bold"
                                     >
-                                      ➕ Tambah
+                                      ➕ Modal
                                     </button>
                                     <button 
                                       onClick={() => setSelectedPemodalWithdraw(p)} 
                                       className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1.5 rounded-lg text-[10px] font-bold"
                                     >
-                                      💸 Tarik
+                                      💸 Tarik Modal
                                     </button>
                                     <button 
                                       onClick={() => handleDeletePemodal(p.id)} 
@@ -2573,6 +2809,30 @@
                       })
                     )}
                   </div>
+
+                  {profitWithdrawalList.length > 0 && (
+                    <div className="p-3 sm:p-6 border-t border-slate-200 bg-amber-50/30 space-y-2">
+                      <h3 className="text-xs font-bold text-amber-900 uppercase flex items-center gap-1">
+                        💰 Riwayat Penarikan Laba Bersih (Dividen)
+                      </h3>
+                      <div className="space-y-2">
+                        {profitWithdrawalList.map((pw) => (
+                          <div key={pw.id} className="p-2.5 bg-white border border-amber-200/80 rounded-xl flex justify-between items-center text-xs shadow-sm">
+                            <div>
+                              <p className="font-bold text-slate-800">{pw.namaPemodal}</p>
+                              <p className="text-[10px] text-slate-400">{pw.tanggal} • {pw.catatan}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-amber-700">-{formatRupiah(pw.jumlahTarik)}</span>
+                              {currentUser.role === 'Admin' && (
+                                <button onClick={() => handleDeleteProfitWithdrawal(pw.id)} className="text-red-500 hover:text-red-700">🗑️</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {additionList.length > 0 && (
                     <div className="p-3 sm:p-6 border-t border-slate-200 bg-slate-50/50 space-y-2">
@@ -2598,7 +2858,7 @@
 
                   {withdrawalList.length > 0 && (
                     <div className="p-3 sm:p-6 border-t border-slate-200 bg-slate-50/50 space-y-2">
-                      <h3 className="text-xs font-bold text-slate-700 uppercase">📋 Riwayat Penarikan Modal</h3>
+                      <h3 className="text-xs font-bold text-slate-700 uppercase">📋 Riwayat Penarikan Modal Pokok</h3>
                       <div className="space-y-2">
                         {withdrawalList.map((w) => (
                           <div key={w.id} className="p-2.5 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs">
