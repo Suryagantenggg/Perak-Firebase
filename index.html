@@ -86,7 +86,7 @@
       const [authError, setAuthError] = useState('');
       const [authSuccess, setAuthSuccess] = useState('');
 
-      const [activeTab, setActiveTab] = useState('dashboard');
+      const [activeTab, setActiveTab] = useState('flow_info');
       const [searchTerm, setSearchTerm] = useState('');
       const [loading, setLoading] = useState(false);
       const [toastMsg, setToastMsg] = useState('');
@@ -186,7 +186,7 @@
             const { onAuthStateChanged, doc, getDoc } = window.fbFS;
             onAuthStateChanged(window.fbAuth, async (user) => {
               if (user) {
-                let userRole = 'Petugas';
+                let userRole = 'Client'; // DEFAULT ROLE JIKA TIDAK DITEMUKAN
                 let displayName = user.displayName || user.email.split('@')[0];
 
                 try {
@@ -368,15 +368,16 @@
           const { createUserWithEmailAndPassword, doc, setDoc } = window.fbFS;
           const userCred = await createUserWithEmailAndPassword(window.fbAuth, signupEmail.trim(), signupPassword.trim());
           
+          // DEFAULT ROLE DIUBAH MENJADI "Client"
           await setDoc(doc(window.fbDb, "users", userCred.user.uid), {
             nama: signupNama.trim(),
             email: signupEmail.trim(),
-            role: 'Petugas',
+            role: 'Client',
             createdAt: Date.now()
           });
 
           setLoading(false);
-          setAuthSuccess('🎉 Akun berhasil dibuat! Silakan masuk.');
+          setAuthSuccess('🎉 Akun Client berhasil dibuat! Silakan masuk.');
           setLoginEmail(signupEmail.trim());
           setSignupNama('');
           setSignupEmail('');
@@ -1284,7 +1285,7 @@
                     disabled={loading}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition active:scale-95"
                   >
-                    {loading ? 'Mendaftarkan...' : 'Daftar Akun Baru ➔'}
+                    {loading ? 'Mendaftarkan...' : 'Daftar Akun Baru (Client) ➔'}
                   </button>
                 </form>
               )}
@@ -1292,6 +1293,8 @@
           </div>
         );
       }
+
+      const isClient = currentUser.role === 'Client';
 
       return (
         <div className="min-h-screen bg-slate-100 text-slate-800 font-sans relative pb-12">
@@ -1534,7 +1537,8 @@
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-200 truncate max-w-[100px] sm:max-w-none">{currentUser.nama}</p>
                   <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold uppercase ${
-                    currentUser.role === 'Admin' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-300'
+                    currentUser.role === 'Admin' ? 'bg-amber-500 text-slate-900' :
+                    currentUser.role === 'Petugas' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'
                   }`}>
                     {currentUser.role}
                   </span>
@@ -1549,7 +1553,7 @@
               </div>
             </div>
 
-            {/* TAB SCROLLABLE MOBILE */}
+            {/* TAB SCROLLABLE MOBILE - FILTERING BERDASARKAN ROLE CLIENT */}
             <nav className="bg-slate-800 border-t border-slate-700">
               <div className="max-w-7xl mx-auto px-2 flex overflow-x-auto no-scrollbar">
                 <button
@@ -1560,30 +1564,40 @@
                 >
                   💡 Cara Kerja & Investasi
                 </button>
-                <button
-                  onClick={() => setActiveTab('pengambilan')}
-                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
-                    activeTab === 'pengambilan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
-                  }`}
-                >
-                  📥 1. Pembelian
-                </button>
-                <button
-                  onClick={() => setActiveTab('pengolahan')}
-                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
-                    activeTab === 'pengolahan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
-                  }`}
-                >
-                  🧪 2. Olah ({pendingOlahList.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('penjualan')}
-                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
-                    activeTab === 'penjualan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
-                  }`}
-                >
-                  💰 3. Jual ({pendingJualList.length})
-                </button>
+
+                {!isClient && (
+                  <button
+                    onClick={() => setActiveTab('pengambilan')}
+                    className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                      activeTab === 'pengambilan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
+                    }`}
+                  >
+                    📥 1. Pembelian
+                  </button>
+                )}
+
+                {!isClient && (
+                  <button
+                    onClick={() => setActiveTab('pengolahan')}
+                    className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                      activeTab === 'pengolahan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
+                    }`}
+                  >
+                    🧪 2. Olah ({pendingOlahList.length})
+                  </button>
+                )}
+
+                {!isClient && (
+                  <button
+                    onClick={() => setActiveTab('penjualan')}
+                    className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                      activeTab === 'penjualan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
+                    }`}
+                  >
+                    💰 3. Jual ({pendingJualList.length})
+                  </button>
+                )}
+
                 <button
                   onClick={() => setActiveTab('neraca')}
                   className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
@@ -1592,14 +1606,18 @@
                 >
                   💳 4. Neraca Kas
                 </button>
-                <button
-                  onClick={() => setActiveTab('pemodal')}
-                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
-                    activeTab === 'pemodal' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
-                  }`}
-                >
-                  🤝 Pemodal ({pemodalList.length})
-                </button>
+
+                {!isClient && (
+                  <button
+                    onClick={() => setActiveTab('pemodal')}
+                    className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                      activeTab === 'pemodal' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
+                    }`}
+                  >
+                    🤝 Pemodal ({pemodalList.length})
+                  </button>
+                )}
+
                 <button
                   onClick={() => setActiveTab('recap_pdf')}
                   className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
@@ -1608,14 +1626,18 @@
                 >
                   📄 Recap PDF
                 </button>
-                <button
-                  onClick={() => setActiveTab('categories')}
-                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
-                    activeTab === 'categories' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
-                  }`}
-                >
-                  ⚙️ Kategori ({categories.length})
-                </button>
+
+                {!isClient && (
+                  <button
+                    onClick={() => setActiveTab('categories')}
+                    className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                      activeTab === 'categories' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
+                    }`}
+                  >
+                    ⚙️ Kategori ({categories.length})
+                  </button>
+                )}
+
                 {currentUser.role === 'Admin' && (
                   <button
                     onClick={() => setActiveTab('users')}
@@ -1626,6 +1648,7 @@
                     👥 User ({userList.length})
                   </button>
                 )}
+
                 <button
                   onClick={() => setActiveTab('dashboard')}
                   className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
@@ -1655,17 +1678,19 @@
                       Bergabunglah bersama kami dalam bisnis pengolahan limbah industri dan bahan mentah menjadi perak murni berkualitas tinggi dengan rasio efisiensi tinggi, pencatatan realtime, dan bagi hasil yang transparan.
                     </p>
                     <div className="pt-2 flex flex-wrap gap-3">
-                      <button
-                        onClick={() => setActiveTab('pemodal')}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold px-5 py-3 rounded-xl text-xs shadow-lg transition active:scale-95"
-                      >
-                        🤝 Mulai Berinvestasi
-                      </button>
+                      {!isClient && (
+                        <button
+                          onClick={() => setActiveTab('pemodal')}
+                          className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold px-5 py-3 rounded-xl text-xs shadow-lg transition active:scale-95"
+                        >
+                          🤝 Kelola Pemodal
+                        </button>
+                      )}
                       <button
                         onClick={() => setActiveTab('dashboard')}
                         className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold px-5 py-3 rounded-xl text-xs transition"
                       >
-                        📊 Lihat Performa Realtime
+                        📊 Lihat Laporan Performa
                       </button>
                     </div>
                   </div>
@@ -1768,17 +1793,17 @@
                   </div>
                 </div>
 
-                {/* CALL TO ACTION BOTTON */}
+                {/* CALL TO ACTION BUTTON */}
                 <div className="bg-amber-500 text-slate-900 rounded-2xl p-6 text-center space-y-3 shadow-md">
                   <h3 className="font-black text-lg sm:text-xl">Tertarik Menjadi Bagian Dari Investor Kami?</h3>
                   <p className="text-xs font-semibold text-slate-800 max-w-xl mx-auto">
-                    Hubungi tim pengelola atau daftarkan nama Anda langsung di menu **Pemodal** untuk mulai memutar modal Anda di sektor riil.
+                    Hubungi tim pengelola kami untuk konsultasi dan pendaftaran resmi sebagai pemodal aktif.
                   </p>
                   <button
-                    onClick={() => setActiveTab('pemodal')}
+                    onClick={() => setActiveTab('dashboard')}
                     className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold px-6 py-3 rounded-xl text-xs shadow transition active:scale-95"
                   >
-                    Masuk Ke Halaman Pemodal ➔
+                    Lihat Performa Laporan Usaha ➔
                   </button>
                 </div>
               </div>
@@ -1794,7 +1819,7 @@
                         👥 Kontrol Pengguna
                         <span className="text-[9px] bg-amber-500 text-slate-900 font-extrabold px-1.5 py-0.5 rounded">ADMIN</span>
                       </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Kelola wewenang pengguna sistem.</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Kelola wewenang pengguna sistem (Admin, Petugas, Client).</p>
                     </div>
                   </div>
 
@@ -1813,9 +1838,10 @@
                           
                           <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-0 pt-2 sm:pt-0">
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                              u.role === 'Admin' ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-200 text-slate-700'
+                              u.role === 'Admin' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                              u.role === 'Petugas' ? 'bg-blue-100 text-blue-800 border border-blue-300' : 'bg-slate-200 text-slate-700'
                             }`}>
-                              {u.role || 'Petugas'}
+                              {u.role || 'Client'}
                             </span>
 
                             {!isSelf && (
@@ -1831,12 +1857,21 @@
                                 </button>
                                 <button
                                   onClick={() => handleChangeUserRole(u.uid, 'Petugas')}
-                                  disabled={u.role === 'Petugas' || !u.role}
+                                  disabled={u.role === 'Petugas'}
                                   className={`px-2.5 py-1 rounded text-[10px] font-bold ${
-                                    (u.role === 'Petugas' || !u.role) ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-slate-800 text-white'
+                                    u.role === 'Petugas' ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-blue-600 text-white'
                                   }`}
                                 >
                                   Petugas
+                                </button>
+                                <button
+                                  onClick={() => handleChangeUserRole(u.uid, 'Client')}
+                                  disabled={u.role === 'Client' || !u.role}
+                                  className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                                    (u.role === 'Client' || !u.role) ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-slate-800 text-white'
+                                  }`}
+                                >
+                                  Client
                                 </button>
                               </div>
                             )}
@@ -2040,7 +2075,7 @@
             )}
 
             {/* TAB PEMODAL & BAGI HASIL */}
-            {activeTab === 'pemodal' && (
+            {activeTab === 'pemodal' && !isClient && (
               <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
                 <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                   <div className="flex flex-col gap-3 mb-3 pb-3 border-b border-slate-100">
@@ -2467,7 +2502,7 @@
             )}
 
             {/* TAB MASTER KATEGORI */}
-            {activeTab === 'categories' && (
+            {activeTab === 'categories' && !isClient && (
               <div className="max-w-4xl mx-auto space-y-4">
                 <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                   <div className="bg-slate-900 text-white p-4 sm:p-6">
@@ -2502,7 +2537,7 @@
             )}
 
             {/* TAB 1: PEMBELIAN */}
-            {activeTab === 'pengambilan' && (
+            {activeTab === 'pengambilan' && !isClient && (
               <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-6">
                   <h2 className="text-base sm:text-lg font-bold">📥 Input Pembelian Barang Mentah</h2>
@@ -2559,7 +2594,7 @@
             )}
 
             {/* TAB 2: PENGOLAHAN */}
-            {activeTab === 'pengolahan' && (
+            {activeTab === 'pengolahan' && !isClient && (
               <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-6">
                   <h2 className="text-base sm:text-lg font-bold">🧪 Input Pengolahan & Pemurnian</h2>
@@ -2624,7 +2659,7 @@
             )}
 
             {/* TAB 3: PENJUALAN */}
-            {activeTab === 'penjualan' && (
+            {activeTab === 'penjualan' && !isClient && (
               <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-6">
                   <h2 className="text-base sm:text-lg font-bold">💰 Input Penjualan Perak Murni</h2>
