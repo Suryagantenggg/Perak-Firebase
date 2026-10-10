@@ -99,6 +99,7 @@
       const [withdrawalList, setWithdrawalList] = useState([]);
       const [profitWithdrawalList, setProfitWithdrawalList] = useState([]);
       const [additionList, setAdditionList] = useState([]);
+      const [chemicalList, setChemicalList] = useState([]);
       const [userList, setUserList] = useState([]);
 
       // STATE CUSTOMER SERVICE
@@ -134,6 +135,18 @@
         const m = String(now.getMonth() + 1).padStart(2, '0');
         return `${y}-${m}`;
       };
+
+      // STATE FORM INPUT CHEMICAL
+      const [formChemical, setFormChemical] = useState({
+        tanggal: getTodayFormatted(),
+        namaChemical: '',
+        jumlahVolume: '',
+        satuan: 'Liter',
+        totalHarga: '',
+        tokoVendor: '',
+        pembeliSelect: '',
+        catatan: ''
+      });
 
       // STATE FILTER TANGGAL KHUSUS MENU PEMODAL
       const [pemodalFilterType, setPemodalFilterType] = useState('ALL');
@@ -234,7 +247,7 @@
         }, 100);
       }, []);
 
-      // LISTEN DATA NISBAH PENGELOLA REALTIME SINKRON DARI FIRESTORE (PERBAIKAN TUNTAS)
+      // LISTEN DATA NISBAH PENGELOLA REALTIME SINKRON DARI FIRESTORE
       useEffect(() => {
         let unsub = null;
         const checkNisbah = setInterval(() => {
@@ -281,6 +294,31 @@
           }
         }
       };
+
+      // LISTEN DATA CHEMICAL REALTIME
+      useEffect(() => {
+        if (!currentUser) return;
+
+        let unsub = null;
+        const checkChem = setInterval(() => {
+          if (window.fbDb && window.fbFS) {
+            clearInterval(checkChem);
+            const { collection, query, orderBy, onSnapshot } = window.fbFS;
+            const q = query(collection(window.fbDb, "chemical_purchases"), orderBy("createdAt", "desc"));
+
+            unsub = onSnapshot(q, (snapshot) => {
+              const list = [];
+              snapshot.forEach((docSnap) => list.push({ id: docSnap.id, ...docSnap.data() }));
+              setChemicalList(list);
+            });
+          }
+        }, 100);
+
+        return () => {
+          clearInterval(checkChem);
+          if (unsub) unsub();
+        };
+      }, [currentUser]);
 
       // LISTEN DATA CUSTOMER SERVICE DARI FIRESTORE
       useEffect(() => {
@@ -337,6 +375,7 @@
         if (currentUser && currentUser.nama) {
           setFormAmbil(prev => ({ ...prev, pengambilSelect: currentUser.nama }));
           setFormOlah(prev => ({ ...prev, pengolahSelect: currentUser.nama }));
+          setFormChemical(prev => ({ ...prev, pembeliSelect: currentUser.nama }));
         }
       }, [currentUser]);
 
@@ -658,6 +697,73 @@
         } catch (err) {
           setLoading(false);
           alert('Gagal menyimpan kontak CS: ' + err.message);
+        }
+      };
+
+      // HANDLER SIMPAN PEMBELIAN CHEMICAL
+      const handleSaveChemical = async (e) => {
+        e.preventDefault();
+        if (currentUser.role === 'Client') {
+          return alert('Akses ditolak! Role Client tidak memiliki akses menginput.');
+        }
+
+        const hargaTotal = parseFloat(formChemical.totalHarga) || 0;
+        const volume = parseFloat(formChemical.jumlahVolume) || 0;
+
+        if (!formChemical.namaChemical.trim() || hargaTotal <= 0) {
+          return alert('Nama Chemical dan Total Harga Pembelian harus diisi!');
+        }
+
+        setLoading(true);
+        try {
+          const { collection, addDoc } = window.fbFS;
+          await addDoc(collection(window.fbDb, "chemical_purchases"), {
+            codeId: 'CHEM-' + Math.floor(1000 + Math.random() * 9000),
+            tanggal: formChemical.tanggal,
+            namaChemical: formChemical.namaChemical.trim(),
+            jumlahVolume: volume,
+            satuan: formChemical.satuan || 'Liter',
+            totalHarga: hargaTotal,
+            tokoVendor: formChemical.tokoVendor.trim() || '-',
+            pembeli: formChemical.pembeliSelect || currentUser.nama,
+            catatan: formChemical.catatan.trim() || '-',
+            createdAt: Date.now()
+          });
+
+          setLoading(false);
+          showToast('🧪 Pembelian Chemical berhasil dicatat!');
+          setFormChemical({
+            tanggal: getTodayFormatted(),
+            namaChemical: '',
+            jumlahVolume: '',
+            satuan: 'Liter',
+            totalHarga: '',
+            tokoVendor: '',
+            pembeliSelect: currentUser ? currentUser.nama : '',
+            catatan: ''
+          });
+        } catch (err) {
+          setLoading(false);
+          alert('Gagal mencatat pembelian chemical: ' + err.message);
+        }
+      };
+
+      const handleDeleteChemical = async (id) => {
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
+        if (window.confirm('Hapus pencatatan pembelian chemical ini?')) {
+          setLoading(true);
+          try {
+            const { doc, deleteDoc } = window.fbFS;
+            await deleteDoc(doc(window.fbDb, "chemical_purchases", id));
+            setLoading(false);
+            showToast('🗑️ Data chemical berhasil dihapus!');
+          } catch (err) {
+            setLoading(false);
+            alert('Gagal menghapus data chemical!');
+          }
         }
       };
 
@@ -1334,6 +1440,9 @@
             ...profitWithdrawalList.map(pw => ({
               code: 'DIVIDEN-TARIK', date: pw.tanggal, title: `Tarik Laba Bersih (${pw.namaPemodal})`, masuk: 0, keluar: pw.jumlahTarik
             })),
+            ...chemicalList.map(c => ({
+              code: c.codeId || 'CHEM', date: c.tanggal, title: `Beli Chemical: ${c.namaChemical} (${c.pembeli})`, masuk: 0, keluar: c.totalHarga || 0
+            })),
             ...recapFilteredTransactions.map(t => ({
               code: t.codeId, date: t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil, title: `${t.kategoriName} (${t.pengambil})`, masuk: t.totalJual || 0, keluar: (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0)
             }))
@@ -1426,6 +1535,20 @@
         return true;
       });
 
+      const filteredChemicalList = chemicalList.filter(c => {
+        const cDate = c.tanggal;
+        if (neracaFilterType === 'MONTH') {
+          if (!neracaFilterMonth || !cDate) return true;
+          return cDate.startsWith(neracaFilterMonth);
+        } else if (neracaFilterType === 'RANGE') {
+          if (!cDate) return false;
+          if (neracaStartDate && cDate < neracaStartDate) return false;
+          if (neracaEndDate && cDate > neracaEndDate) return false;
+          return true;
+        }
+        return true;
+      });
+
       const filteredPemodalList = pemodalList.filter(p => {
         const pDate = p.tanggalBergabung;
         if (neracaFilterType === 'MONTH') {
@@ -1492,10 +1615,12 @@
       const totalBiayaOperasionalTrx = neracaFilteredTransactions.reduce((acc, t) => {
         return acc + (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0);
       }, 0);
+
+      const totalBiayaChemicalPeriod = filteredChemicalList.reduce((acc, c) => acc + (c.totalHarga || 0), 0);
       const totalKasKeluarWithdraw = filteredWithdrawalList.reduce((acc, w) => acc + (w.jumlahTarik || 0), 0);
       const totalKasKeluarProfitWithdraw = filteredProfitWithdrawalList.reduce((acc, pw) => acc + (pw.jumlahTarik || 0), 0);
 
-      const totalKasKeluar = totalBiayaOperasionalTrx + totalKasKeluarWithdraw + totalKasKeluarProfitWithdraw;
+      const totalKasKeluar = totalBiayaOperasionalTrx + totalBiayaChemicalPeriod + totalKasKeluarWithdraw + totalKasKeluarProfitWithdraw;
 
       const saldoKasNet = totalKasMasukKeseluruhan - totalKasKeluar;
 
@@ -1701,7 +1826,7 @@
           {/* MODAL FORM PENARIKAN LABA BERSIH (DIVIDEN) DENGAN BATAS MAKSIMAL */}
           {selectedPemodalProfitWD && currentUser.role === 'Admin' && (
             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-none duration-200">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
                 <div className="bg-emerald-900 text-white p-4 sm:p-5 flex justify-between items-center">
                   <div>
                     <h3 className="font-bold text-sm text-amber-400">💰 Penarikan Laba Bersih (Dividen)</h3>
@@ -1820,7 +1945,7 @@
           {/* MODAL FORM PENARIKAN MODAL */}
           {selectedPemodalWithdraw && currentUser.role === 'Admin' && (
             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-none duration-200">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center">
                   <div>
                     <h3 className="font-bold text-sm text-amber-400">💸 Penarikan Modal Investor</h3>
@@ -1924,7 +2049,7 @@
           {/* MODAL FORM TAMBAH MODAL */}
           {selectedPemodalAdd && currentUser.role === 'Admin' && (
             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-none duration-200">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center">
                   <div>
                     <h3 className="font-bold text-sm text-emerald-400">➕ Penambahan Modal Investor</h3>
@@ -2074,7 +2199,18 @@
                       activeTab === 'pengambilan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
                     }`}
                   >
-                    📥 1. Pembelian
+                    📥 1. Pembelian Brg
+                  </button>
+                )}
+
+                {!isClient && (
+                  <button
+                    onClick={() => setActiveTab('chemical')}
+                    className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                      activeTab === 'chemical' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-cyan-400'
+                    }`}
+                  >
+                    🧪 Chemical ({chemicalList.length})
                   </button>
                 )}
 
@@ -2085,7 +2221,7 @@
                       activeTab === 'pengolahan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
                     }`}
                   >
-                    🧪 2. Olah ({pendingOlahList.length})
+                    ⚗️ 2. Olah ({pendingOlahList.length})
                   </button>
                 )}
 
@@ -2210,11 +2346,8 @@
                       </div>
                       <h4 className="font-bold text-slate-900 text-sm">📥 Pembelian Mentah</h4>
                       <p className="text-[11px] text-slate-600 leading-relaxed">
-                        Tim lapangan membeli bahan mentah (kontaktor, breaker, fuse, dll.) dari supplier/pabrik dengan harga terjangkau.
+                        Tim lapangan membeli bahan mentah (kontaktor, breaker, fuse, dll.) dari supplier/pabrik.
                       </p>
-                      <span className="inline-block text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
-                        Pencatatan Modal & Transport
-                      </span>
                     </div>
 
                     <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-200/80 space-y-2 relative">
@@ -2223,11 +2356,8 @@
                       </div>
                       <h4 className="font-bold text-slate-900 text-sm">🧪 Pengolahan & Olah</h4>
                       <p className="text-[11px] text-slate-600 leading-relaxed">
-                        Bahan kotor diproses dan dimurnikan menggunakan teknik refining kimiawi untuk menghasilkan Perak Murni (Ag).
+                        Bahan kotor diproses dan dimurnikan menggunakan teknik refining kimiawi.
                       </p>
-                      <span className="inline-block text-[10px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">
-                        Kalkulasi Kadar Efisiensi %
-                      </span>
                     </div>
 
                     <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-2 relative">
@@ -2236,11 +2366,8 @@
                       </div>
                       <h4 className="font-bold text-slate-900 text-sm">💰 Penjualan Hasil</h4>
                       <p className="text-[11px] text-slate-600 leading-relaxed">
-                        Perak murni dijual langsung ke toko/pembeli industri sesuai harga pasar perak murni terkini per gram.
+                        Perak murni dijual langsung ke toko/pembeli industri sesuai harga pasar.
                       </p>
-                      <span className="inline-block text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
-                        Omset & Realisasi Laba
-                      </span>
                     </div>
 
                     <div className="bg-slate-100 p-4 rounded-2xl border border-slate-300 space-y-2 relative">
@@ -2249,61 +2376,206 @@
                       </div>
                       <h4 className="font-bold text-slate-900 text-sm">🤝 Bagi Hasil Investor</h4>
                       <p className="text-[11px] text-slate-600 leading-relaxed">
-                        Laba bersih didistribusikan secara otomatis kepada investor sesuai dengan porsi persentase modal aktif.
+                        Laba bersih didistribusikan secara otomatis sesuai porsi modal aktif.
                       </p>
-                      <span className="inline-block text-[10px] font-bold text-slate-800 bg-slate-200 px-2 py-0.5 rounded-md">
-                        Dividen Otomatis & Transparan
-                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                    <div className="text-2xl">📈</div>
-                    <h4 className="font-bold text-slate-800 text-sm">Margin Laba Tinggi</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      Pengolahan barang mentah komponen listrik memiliki *margin value* yang jauh lebih tinggi dibanding perdagangan fisik biasa.
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                    <div className="text-2xl">🛡️</div>
-                    <h4 className="font-bold text-slate-800 text-sm">Laporan Akuntabel & Realtime</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      Semua transaksi pembelian, biaya operasional, hingga arus kas neraca dicatat langsung dan dapat didownload dalam PDF resmi.
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                    <div className="text-2xl">⚡</div>
-                    <h4 className="font-bold text-slate-800 text-sm">Sangat Fleksibel</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      Pemodal berhak melakukan penambahan modal atau penarikan sebagian modal sesuai dengan syarat & kesepakatan operasional.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-emerald-600 text-white rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-xl relative overflow-hidden">
-                  <div className="space-y-2 relative z-10">
-                    <span className="bg-emerald-900/60 text-emerald-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                <div className="bg-emerald-600 text-white rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-xl">
+                  <div className="space-y-2">
+                    <span className="bg-emerald-900/60 text-emerald-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase">
                       💬 Layanan Customer Service Active
                     </span>
                     <h3 className="font-black text-xl sm:text-2xl text-amber-300">Tertarik Menjadi Bagian Dari Investor Kami?</h3>
-                    <p className="text-xs sm:text-sm text-emerald-100 max-w-xl mx-auto leading-relaxed">
-                      Hubungi tim Customer Service ({csInfo.namaCs || 'Cahaya Gemilang'}) kami untuk konsultasi, penjelasan alur bisnis, serta pendaftaran resmi investor.
-                    </p>
                   </div>
 
-                  <div className="pt-2 flex justify-center relative z-10">
+                  <div className="pt-2 flex justify-center">
                     <a
                       href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold px-6 py-3.5 rounded-2xl text-xs sm:text-sm shadow-xl transition transform active:scale-95 flex items-center gap-2 border border-emerald-300"
+                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold px-6 py-3.5 rounded-2xl text-xs sm:text-sm shadow-xl transition active:scale-95 flex items-center gap-2"
                     >
-                      <span className="text-lg">💬</span> Hubungi CS via WhatsApp (+{csInfo.noWa}) ➔
+                      <span>💬</span> Hubungi CS via WhatsApp (+{csInfo.noWa}) ➔
                     </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB BARU: INPUT PEMBELIAN CHEMICAL / BAHAN KIMIA */}
+            {activeTab === 'chemical' && !isClient && (
+              <div className="max-w-3xl mx-auto space-y-6">
+                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex justify-between items-center">
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                        🧪 Input Pembelian Chemical (Bahan Kimia)
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Catat pengeluaran bahan kimia untuk proses pemurnian perak.</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveChemical} className="p-4 sm:p-6 space-y-4 bg-slate-50 border-b border-slate-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Pembelian</label>
+                        <input
+                          type="date"
+                          required
+                          value={formChemical.tanggal}
+                          onChange={(e) => setFormChemical({ ...formChemical, tanggal: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">PIC Pembeli / Petugas</label>
+                        <input
+                          type="text"
+                          required
+                          value={formChemical.pembeliSelect}
+                          onChange={(e) => setFormChemical({ ...formChemical, pembeliSelect: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-cyan-800 bg-cyan-50/50"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Chemical / Bahan Kimia</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Asam Nitrat (HNO3), Sianida, Boraks, H2SO4"
+                          value={formChemical.namaChemical}
+                          onChange={(e) => setFormChemical({ ...formChemical, namaChemical: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Toko / Supplier / Vendor</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Toko Kimia Jaya Cikarang"
+                          value={formChemical.tokoVendor}
+                          onChange={(e) => setFormChemical({ ...formChemical, tokoVendor: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Jumlah Volume / Berat</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal"
+                          required
+                          placeholder="e.g. 25"
+                          value={formChemical.jumlahVolume}
+                          onChange={(e) => setFormChemical({ ...formChemical, jumlahVolume: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Satuan</label>
+                        <select
+                          value={formChemical.satuan}
+                          onChange={(e) => setFormChemical({ ...formChemical, satuan: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white font-bold text-slate-800"
+                        >
+                          <option value="Liter">Liter</option>
+                          <option value="Kg">Kg</option>
+                          <option value="Galon">Galon</option>
+                          <option value="Drum">Drum</option>
+                          <option value="Botol">Botol</option>
+                          <option value="Pcs">Pcs</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Total Biaya Pembelian (Rp)</label>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          required
+                          placeholder="e.g. 750000"
+                          value={formChemical.totalHarga}
+                          onChange={(e) => setFormChemical({ ...formChemical, totalHarga: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white font-bold text-red-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Catatan / Keterangan (Opsional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Untuk pemurnian batch minggu ke-2"
+                        value={formChemical.catatan}
+                        onChange={(e) => setFormChemical({ ...formChemical, catatan: e.target.value })}
+                        className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3.5 rounded-xl shadow transition active:scale-95"
+                    >
+                      Simpan Pembelian Chemical ➔
+                    </button>
+                  </form>
+
+                  {/* RIWAYAT / LIST PEMBELIAN CHEMICAL */}
+                  <div className="p-4 sm:p-6 space-y-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase">
+                      Riwayat Pembelian Chemical ({chemicalList.length} Transaksi)
+                    </h3>
+
+                    {chemicalList.length === 0 ? (
+                      <p className="text-center py-6 text-xs text-slate-400">Belum ada pencatatan pembelian chemical.</p>
+                    ) : (
+                      chemicalList.map((c) => (
+                        <div key={c.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-slate-900 bg-cyan-100 text-cyan-900 px-2 py-0.5 rounded text-[10px]">
+                              {c.codeId || 'CHEM'}
+                            </span>
+                            <span className="text-[10px] text-slate-400">{c.tanggal}</span>
+                          </div>
+
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-bold text-slate-800 text-sm">{c.namaChemical}</p>
+                              <p className="text-[10px] text-slate-500">
+                                Volume: <strong className="text-slate-800">{c.jumlahVolume} {c.satuan}</strong> | Supplier: {c.tokoVendor} | PIC: {c.pembeli}
+                              </p>
+                              {c.catatan && c.catatan !== '-' && (
+                                <p className="text-[10px] text-slate-400 italic">Catatan: {c.catatan}</p>
+                              )}
+                            </div>
+
+                            <div className="text-right">
+                              <span className="font-mono font-black text-red-600 text-sm block">-{formatRupiah(c.totalHarga)}</span>
+                              {currentUser.role === 'Admin' && (
+                                <button
+                                  onClick={() => handleDeleteChemical(c.id)}
+                                  className="text-red-500 hover:text-red-700 text-[10px] font-bold mt-1"
+                                >
+                                  🗑️ Hapus
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -2551,6 +2823,7 @@
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Kas Keluar Total</span>
                     <p className="text-base sm:text-2xl font-black text-red-600 mt-1">-{formatRupiah(totalKasKeluar)}</p>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Chem: {formatRupiah(totalBiayaChemicalPeriod)}</span>
                   </div>
                   <div className="bg-slate-900 text-white p-3.5 sm:p-5 rounded-2xl shadow-md border border-slate-800 col-span-2 sm:col-span-1">
                     <span className="text-[10px] font-semibold text-amber-400 uppercase">Saldo Kas Akhir</span>
@@ -2564,102 +2837,109 @@
                   </div>
 
                   <div className="p-3 space-y-2.5">
-                    {filteredPemodalList.length === 0 && neracaFilteredTransactions.length === 0 && filteredWithdrawalList.length === 0 && filteredProfitWithdrawalList.length === 0 && filteredAdditionList.length === 0 ? (
-                      <p className="text-center py-6 text-xs text-slate-400">Belum ada mutasi arus kas.</p>
-                    ) : (
-                      (() => {
-                        let runningBalance = 0;
+                    {(() => {
+                      let runningBalance = 0;
 
-                        const combinedEvents = [
-                          ...filteredPemodalList.map(p => ({
-                            type: 'PEMODAL',
-                            id: p.id,
-                            codeId: 'INV-SETOR',
-                            date: p.tanggalBergabung,
-                            title: `Investasi Setor (${p.namaPemodal})`,
-                            subTitle: `Kontak: ${p.kontak}`,
-                            kasMasuk: p.jumlahModal,
-                            kasKeluar: 0
-                          })),
-                          ...filteredAdditionList.map(a => ({
-                            type: 'ADDITION',
-                            id: a.id,
-                            codeId: 'INV-TAMBAH',
-                            date: a.tanggal,
-                            title: `Tambah Modal (${a.namaPemodal})`,
-                            subTitle: `Catatan: ${a.catatan}`,
-                            kasMasuk: a.jumlahTambah,
-                            kasKeluar: 0
-                          })),
-                          ...filteredWithdrawalList.map(w => ({
-                            type: 'WITHDRAWAL',
-                            id: w.id,
-                            codeId: 'INV-TARIK',
-                            date: w.tanggal,
-                            title: `Tarik Modal (${w.namaPemodal})`,
-                            subTitle: `Catatan: ${w.catatan}`,
-                            kasMasuk: 0,
-                            kasKeluar: w.jumlahTarik
-                          })),
-                          ...filteredProfitWithdrawalList.map(pw => ({
-                            type: 'PROFIT_WITHDRAWAL',
-                            id: pw.id,
-                            codeId: 'DIVIDEN-TARIK',
-                            date: pw.tanggal,
-                            title: `Tarik Laba Bersih (${pw.namaPemodal})`,
-                            subTitle: `Catatan: ${pw.catatan}`,
-                            kasMasuk: 0,
-                            kasKeluar: pw.jumlahTarik
-                          })),
-                          ...neracaFilteredTransactions.map(t => ({
-                            type: 'TRANSAKSI',
-                            id: t.id,
-                            codeId: t.codeId,
-                            date: t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil,
-                            title: t.kategoriName,
-                            subTitle: `PIC: ${t.pengambil}`,
-                            kasMasuk: t.totalJual || 0,
-                            kasKeluar: (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0)
-                          }))
-                        ].sort((a, b) => (a.date > b.date ? 1 : -1));
+                      const combinedEvents = [
+                        ...filteredPemodalList.map(p => ({
+                          type: 'PEMODAL',
+                          id: p.id,
+                          codeId: 'INV-SETOR',
+                          date: p.tanggalBergabung,
+                          title: `Investasi Setor (${p.namaPemodal})`,
+                          subTitle: `Kontak: ${p.kontak}`,
+                          kasMasuk: p.jumlahModal,
+                          kasKeluar: 0
+                        })),
+                        ...filteredAdditionList.map(a => ({
+                          type: 'ADDITION',
+                          id: a.id,
+                          codeId: 'INV-TAMBAH',
+                          date: a.tanggal,
+                          title: `Tambah Modal (${a.namaPemodal})`,
+                          subTitle: `Catatan: ${a.catatan}`,
+                          kasMasuk: a.jumlahTambah,
+                          kasKeluar: 0
+                        })),
+                        ...filteredWithdrawalList.map(w => ({
+                          type: 'WITHDRAWAL',
+                          id: w.id,
+                          codeId: 'INV-TARIK',
+                          date: w.tanggal,
+                          title: `Tarik Modal (${w.namaPemodal})`,
+                          subTitle: `Catatan: ${w.catatan}`,
+                          kasMasuk: 0,
+                          kasKeluar: w.jumlahTarik
+                        })),
+                        ...filteredProfitWithdrawalList.map(pw => ({
+                          type: 'PROFIT_WITHDRAWAL',
+                          id: pw.id,
+                          codeId: 'DIVIDEN-TARIK',
+                          date: pw.tanggal,
+                          title: `Tarik Laba Bersih (${pw.namaPemodal})`,
+                          subTitle: `Catatan: ${pw.catatan}`,
+                          kasMasuk: 0,
+                          kasKeluar: pw.jumlahTarik
+                        })),
+                        ...filteredChemicalList.map(c => ({
+                          type: 'CHEMICAL',
+                          id: c.id,
+                          codeId: c.codeId || 'CHEM',
+                          date: c.tanggal,
+                          title: `Beli Chemical: ${c.namaChemical}`,
+                          subTitle: `Vol: ${c.jumlahVolume} ${c.satuan} | Supplier: ${c.tokoVendor} | PIC: ${c.pembeli}`,
+                          kasMasuk: 0,
+                          kasKeluar: c.totalHarga || 0
+                        })),
+                        ...neracaFilteredTransactions.map(t => ({
+                          type: 'TRANSAKSI',
+                          id: t.id,
+                          codeId: t.codeId,
+                          date: t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil,
+                          title: t.kategoriName,
+                          subTitle: `PIC: ${t.pengambil}`,
+                          kasMasuk: t.totalJual || 0,
+                          kasKeluar: (t.totalBeli || 0) + (t.biayaTransport || 0) + (t.biayaOlah || 0) + (t.biayaPenjualan || 0)
+                        }))
+                      ].sort((a, b) => (a.date > b.date ? 1 : -1));
 
-                        return combinedEvents.map((item) => {
-                          runningBalance += (item.kasMasuk - item.kasKeluar);
+                      return combinedEvents.map((item) => {
+                        runningBalance += (item.kasMasuk - item.kasKeluar);
 
-                          return (
-                            <div key={item.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
-                              <div className="flex justify-between items-center">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                                  item.type === 'PEMODAL' ? 'bg-blue-100 text-blue-800' :
-                                  item.type === 'ADDITION' ? 'bg-emerald-100 text-emerald-800' :
-                                  item.type === 'PROFIT_WITHDRAWAL' ? 'bg-amber-100 text-amber-800' :
-                                  item.type === 'WITHDRAWAL' ? 'bg-red-100 text-red-800' : 'bg-slate-200 text-slate-800'
-                                }`}>
-                                  {item.codeId}
-                                </span>
-                                <span className="text-[10px] text-slate-400">{item.date}</span>
-                              </div>
-                              
+                        return (
+                          <div key={item.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                            <div className="flex justify-between items-center">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                                item.type === 'PEMODAL' ? 'bg-blue-100 text-blue-800' :
+                                item.type === 'ADDITION' ? 'bg-emerald-100 text-emerald-800' :
+                                item.type === 'CHEMICAL' ? 'bg-cyan-100 text-cyan-900 border border-cyan-300' :
+                                item.type === 'PROFIT_WITHDRAWAL' ? 'bg-amber-100 text-amber-800' :
+                                item.type === 'WITHDRAWAL' ? 'bg-red-100 text-red-800' : 'bg-slate-200 text-slate-800'
+                              }`}>
+                                {item.codeId}
+                              </span>
+                              <span className="text-[10px] text-slate-400">{item.date}</span>
+                            </div>
+                            
+                            <div>
+                              <p className="font-bold text-slate-800">{item.title}</p>
+                              <p className="text-[10px] text-slate-500">{item.subTitle}</p>
+                            </div>
+
+                            <div className="flex justify-between items-center border-t border-slate-200/60 pt-1.5 mt-1 font-mono">
                               <div>
-                                <p className="font-bold text-slate-800">{item.title}</p>
-                                <p className="text-[10px] text-slate-500">{item.subTitle}</p>
+                                {item.kasKeluar > 0 && <span className="text-red-600 font-bold block">-{formatRupiah(item.kasKeluar)}</span>}
+                                {item.kasMasuk > 0 && <span className="text-emerald-600 font-bold block">+{formatRupiah(item.kasMasuk)}</span>}
                               </div>
-
-                              <div className="flex justify-between items-center border-t border-slate-200/60 pt-1.5 mt-1 font-mono">
-                                <div>
-                                  {item.kasKeluar > 0 && <span className="text-red-600 font-bold block">-{formatRupiah(item.kasKeluar)}</span>}
-                                  {item.kasMasuk > 0 && <span className="text-emerald-600 font-bold block">+{formatRupiah(item.kasMasuk)}</span>}
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[9px] text-slate-400 block font-sans">Saldo Kas:</span>
-                                  <span className="font-black text-slate-800">{formatRupiah(runningBalance)}</span>
-                                </div>
+                              <div className="text-right">
+                                <span className="text-[9px] text-slate-400 block font-sans">Saldo Kas:</span>
+                                <span className="font-black text-slate-800">{formatRupiah(runningBalance)}</span>
                               </div>
                             </div>
-                          );
-                        });
-                      })()
-                    )}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2904,74 +3184,6 @@
                       })
                     )}
                   </div>
-
-                  {profitWithdrawalList.length > 0 && (
-                    <div className="p-3 sm:p-6 border-t border-slate-200 bg-amber-50/30 space-y-2">
-                      <h3 className="text-xs font-bold text-amber-900 uppercase flex items-center gap-1">
-                        💰 Riwayat Penarikan Laba Bersih (Dividen)
-                      </h3>
-                      <div className="space-y-2">
-                        {profitWithdrawalList.map((pw) => (
-                          <div key={pw.id} className="p-2.5 bg-white border border-amber-200/80 rounded-xl flex justify-between items-center text-xs shadow-sm">
-                            <div>
-                              <p className="font-bold text-slate-800">{pw.namaPemodal}</p>
-                              <p className="text-[10px] text-slate-400">{pw.tanggal} • {pw.catatan}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-amber-700">-{formatRupiah(pw.jumlahTarik)}</span>
-                              {currentUser.role === 'Admin' && (
-                                <button onClick={() => handleDeleteProfitWithdrawal(pw.id)} className="text-red-500 hover:text-red-700">🗑️</button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {additionList.length > 0 && (
-                    <div className="p-3 sm:p-6 border-t border-slate-200 bg-slate-50/50 space-y-2">
-                      <h3 className="text-xs font-bold text-slate-700 uppercase">➕ Riwayat Penambahan Modal</h3>
-                      <div className="space-y-2">
-                        {additionList.map((a) => (
-                          <div key={a.id} className="p-2.5 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs">
-                            <div>
-                              <p className="font-bold text-slate-800">{a.namaPemodal}</p>
-                              <p className="text-[10px] text-slate-400">{a.tanggal} • {a.catatan}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-emerald-600">+{formatRupiah(a.jumlahTambah)}</span>
-                              {currentUser.role === 'Admin' && (
-                                <button onClick={() => handleDeleteAddition(a.id)} className="text-red-500 hover:text-red-700">🗑️</button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {withdrawalList.length > 0 && (
-                    <div className="p-3 sm:p-6 border-t border-slate-200 bg-slate-50/50 space-y-2">
-                      <h3 className="text-xs font-bold text-slate-700 uppercase">📋 Riwayat Penarikan Modal Pokok</h3>
-                      <div className="space-y-2">
-                        {withdrawalList.map((w) => (
-                          <div key={w.id} className="p-2.5 bg-white border border-slate-200 rounded-xl flex justify-between items-center text-xs">
-                            <div>
-                              <p className="font-bold text-slate-800">{w.namaPemodal}</p>
-                              <p className="text-[10px] text-slate-400">{w.tanggal} • {w.catatan}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-red-600">-{formatRupiah(w.jumlahTarik)}</span>
-                              {currentUser.role === 'Admin' && (
-                                <button onClick={() => handleDeleteWithdrawal(w.id)} className="text-red-500 hover:text-red-700">🗑️</button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -3060,68 +3272,6 @@
                         </div>
                       </div>
                     )}
-
-                    <h3 className="text-xs font-bold text-slate-700 uppercase pt-2">2. Informasi Dokumen PDF</h3>
-                    <div className="space-y-3 bg-white p-3 rounded-xl border border-slate-200">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Judul Dokumen PDF</label>
-                        <input
-                          type="text"
-                          value={recapPdfTitle}
-                          onChange={(e) => setRecapPdfTitle(e.target.value)}
-                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold"
-                          placeholder="Judul laporan..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan Tambahan di PDF (Opsional)</label>
-                        <input
-                          type="text"
-                          value={recapPdfNotes}
-                          onChange={(e) => setRecapPdfNotes(e.target.value)}
-                          className="w-full px-3 py-2 border rounded-lg text-xs"
-                          placeholder="e.g. Laporan ini telah disetujui oleh manajemen"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 sm:p-6 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase">Ringkasan Data Laporan Terfilter ({recapFilteredTransactions.length} Transaksi)</h3>
-                    
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Bahan Kotor</span>
-                        <span className="font-bold text-sm text-slate-800">
-                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0).toFixed(2)}g
-                        </span>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Perak Murni</span>
-                        <span className="font-bold text-sm text-blue-600">
-                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0).toFixed(2)}g
-                        </span>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Omset Jual</span>
-                        <span className="font-bold text-sm text-emerald-600">
-                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0))}
-                        </span>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Laba Bersih</span>
-                        <span className="font-bold text-sm text-amber-600">
-                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0))}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleGeneratePDF}
-                      className="w-full bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold py-3.5 rounded-xl shadow transition active:scale-95 text-xs mt-2"
-                    >
-                      📥 Unduh Dokumen PDF
-                    </button>
                   </div>
                 </div>
               </div>
@@ -3289,7 +3439,6 @@
               <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-6">
                   <h2 className="text-base sm:text-lg font-bold">💰 Input Penjualan Perak Murni</h2>
-                  <p className="text-xs text-slate-400 mt-1">Petugas: <span className="text-amber-400 font-bold">{currentUser.nama}</span></p>
                 </div>
                 <form onSubmit={handleSavePenjualan} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                   <div>
@@ -3344,7 +3493,7 @@
               </div>
             )}
 
-            {/* TAB 4: LAPORAN & METRIK REALTIME */}
+            {/* TAB DASHBOARD / LAPORAN */}
             {activeTab === 'dashboard' && (
               <div className="space-y-4 sm:space-y-6">
                 <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
@@ -3456,7 +3605,6 @@
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="p-4 border-b border-slate-200 bg-slate-900 text-white">
                     <h3 className="font-bold text-xs sm:text-sm text-amber-400">👤 Ringkasan Aktivitas & Biaya Per User / PIC</h3>
-                    <p className="text-[10px] text-slate-300 mt-0.5">Rincian beban biaya pembelian, pengolahan, dan omset penjualan per petugas.</p>
                   </div>
 
                   <div className="p-3 sm:p-5 space-y-3">
@@ -3470,9 +3618,6 @@
                           <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
                             <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                               <span className="font-bold text-sm text-slate-900">👤 {u.nama}</span>
-                              <span className="text-[10px] bg-slate-200 text-slate-700 font-extrabold px-2 py-0.5 rounded-full">
-                                Active User
-                              </span>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -3547,66 +3692,6 @@
                       onChange={(e) => setSearchTerm(e.target.value)} 
                       className="px-3 py-2 border rounded-xl text-xs w-full" 
                     />
-                  </div>
-
-                  <div className="p-3 space-y-2.5 sm:hidden">
-                    {filteredTransactions.map((t) => {
-                      const hargaBeliUnit = t.hargaBeliSatuan || (t.jumlahKotor ? Math.round(t.totalBeli / t.jumlahKotor) : 0);
-                      const hargaJualUnit = t.hargaJualSatuan || (t.jumlahMurni ? Math.round(t.totalJual / t.jumlahMurni) : 0);
-
-                      return (
-                        <div key={t.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold text-slate-900">{t.codeId}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800">{t.status}</span>
-                          </div>
-                          
-                          <p className="font-semibold text-slate-800">{t.kategoriName}</p>
-                          
-                          <div className="grid grid-cols-3 gap-1 text-[10px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200">
-                            <div>
-                              <span className="block font-sans text-slate-400">Tgl Ambil:</span>
-                              <span className="font-bold text-slate-700">{t.tanggalAmbil}</span>
-                            </div>
-                            <div>
-                              <span className="block font-sans text-slate-400">Tgl Olah:</span>
-                              <span className="font-bold text-blue-600">{t.tanggalOlah || '-'}</span>
-                            </div>
-                            <div>
-                              <span className="block font-sans text-slate-400">Tgl Jual:</span>
-                              <span className="font-bold text-emerald-600">{t.tanggalPenjualan || '-'}</span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-1 text-[10px] bg-slate-100/70 p-2 rounded-lg font-mono">
-                            <div>
-                              <span className="block text-[9px] text-slate-400 font-sans">Harga Beli /g:</span>
-                              <span className="font-bold text-slate-700">{formatRupiah(hargaBeliUnit)}</span>
-                            </div>
-                            <div>
-                              <span className="block text-[9px] text-slate-400 font-sans">Harga Jual /g:</span>
-                              <span className="font-bold text-emerald-700">{hargaJualUnit > 0 ? formatRupiah(hargaJualUnit) : '-'}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-between items-center pt-1 font-mono">
-                            <div>
-                              <span className="text-[10px] text-slate-500">Mentah: {t.jumlahKotor}g | Murni: <strong className="text-blue-600">{t.jumlahMurni}g</strong></span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[9px] text-slate-400 block font-sans">Laba Bersih:</span>
-                              <span className="font-bold text-amber-600">{formatRupiah(t.totalUntung)}</span>
-                            </div>
-                          </div>
-
-                          {currentUser.role === 'Admin' && (
-                            <div className="flex justify-end border-t border-slate-200/60 pt-1.5 mt-1">
-                              <button onClick={() => handleDeleteTransaction(t.id)} className="text-red-500 text-xs font-bold px-2 py-1">🗑️ Hapus</button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
                   </div>
 
                   <div className="hidden sm:block overflow-x-auto">
