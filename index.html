@@ -368,7 +368,6 @@
           const { createUserWithEmailAndPassword, doc, setDoc } = window.fbFS;
           const userCred = await createUserWithEmailAndPassword(window.fbAuth, signupEmail.trim(), signupPassword.trim());
           
-          // DEFAULT ROLE IS "Client"
           await setDoc(doc(window.fbDb, "users", userCred.user.uid), {
             nama: signupNama.trim(),
             email: signupEmail.trim(),
@@ -414,6 +413,26 @@
           } catch (err) {
             setLoading(false);
             alert('Gagal mengubah role: ' + err.message);
+          }
+        }
+      };
+
+      // FITUR HAPUS AKUN USER OLEH ADMIN
+      const handleDeleteUser = async (targetUser) => {
+        if (targetUser.uid === currentUser.uid) {
+          return alert("Anda tidak dapat menghapus akun Anda sendiri!");
+        }
+
+        if (window.confirm(`Yakin ingin menghapus akun user "${targetUser.nama || targetUser.email}"? Pengguna ini tidak akan bisa mengakses sistem lagi.`)) {
+          setLoading(true);
+          try {
+            const { doc, deleteDoc } = window.fbFS;
+            await deleteDoc(doc(window.fbDb, "users", targetUser.uid));
+            setLoading(false);
+            showToast('🗑️ Akun pengguna berhasil dihapus!');
+          } catch (err) {
+            setLoading(false);
+            alert('Gagal menghapus user: ' + err.message);
           }
         }
       };
@@ -854,7 +873,6 @@
         const statsMap = {};
 
         filteredTransactions.forEach(t => {
-          // 1. Aktivitas Pembelian (PIC Pengambil)
           if (t.pengambil && t.pengambil !== '-') {
             if (!statsMap[t.pengambil]) {
               statsMap[t.pengambil] = {
@@ -870,7 +888,6 @@
             statsMap[t.pengambil].beliTransport += (t.biayaTransport || 0);
           }
 
-          // 2. Aktivitas Pengolahan (PIC Pengolah)
           if (t.pengolah && t.pengolah !== '-') {
             if (!statsMap[t.pengolah]) {
               statsMap[t.pengolah] = {
@@ -885,7 +902,6 @@
             statsMap[t.pengolah].olahBiaya += (t.biayaOlah || 0);
           }
 
-          // 3. Aktivitas Penjualan (PIC Penjual / Toko Pembeli)
           if (t.tokoPembeli && t.tokoPembeli !== '-' && t.status === 'TERJUAL') {
             if (!statsMap[t.tokoPembeli]) {
               statsMap[t.tokoPembeli] = {
@@ -943,7 +959,6 @@
           else if (recapFilterType === 'RANGE') filterPeriodeText = `Periode: ${recapStartDate || 'Awal'} s/d ${recapEndDate || 'Akhir'}`;
           doc.text(`Filter Periode: ${filterPeriodeText}`, 14, 26);
 
-          // RINGKASAN METRIK
           const pdfKotor = recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
           const pdfMurni = recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
           const pdfBeli = recapFilteredTransactions.reduce((acc, t) => acc + (t.totalBeli || 0), 0);
@@ -956,7 +971,6 @@
           doc.setFont('helvetica', 'bold');
           doc.text(`Total Kotor: ${pdfKotor.toFixed(2)}g  |  Total Murni: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
 
-          // TABEL DATA TRANSAKSI
           const tableColumn = [
             "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor(g)", "H.Beli/g", "Total Beli", "Murni(g)", "H.Jual/g", "Total Jual", "Laba Bersih", "Status"
           ];
@@ -997,7 +1011,6 @@
 
           let currentY = doc.lastAutoTable.finalY + 8;
 
-          // TABEL BUKU MUTASI
           if (currentY > 170) {
             doc.addPage();
             currentY = 15;
@@ -1087,7 +1100,6 @@
 
       const pemodalTotalLabaPeriod = pemodalFilteredTransactions.reduce((acc, t) => acc + (t.totalUntung || 0), 0);
       
-      // HITUNG TOTAL MODAL INVESTOR AKTIF DENGAN PENAMBAHAN & PENARIKAN
       const totalModalAwalSetor = pemodalList.reduce((acc, p) => acc + (p.jumlahModal || 0), 0);
       const totalPenambahanModalAll = additionList.reduce((acc, a) => acc + (a.jumlahTambah || 0), 0);
       const totalPenarikanModalAll = withdrawalList.reduce((acc, w) => acc + (w.jumlahTarik || 0), 0);
@@ -1809,7 +1821,7 @@
               </div>
             )}
 
-            {/* TAB KONTROL USER / MANAJEMEN ROLE */}
+            {/* TAB KONTROL USER / MANAJEMEN ROLE & HAPUS AKUN */}
             {activeTab === 'users' && currentUser.role === 'Admin' && (
               <div className="max-w-4xl mx-auto space-y-4">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -1819,7 +1831,7 @@
                         👥 Kontrol Pengguna
                         <span className="text-[9px] bg-amber-500 text-slate-900 font-extrabold px-1.5 py-0.5 rounded">ADMIN</span>
                       </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Kelola wewenang pengguna sistem (Admin, Petugas, Client).</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Kelola wewenang dan akun pengguna sistem (Admin, Petugas, Client).</p>
                     </div>
                   </div>
 
@@ -1844,12 +1856,12 @@
                               {u.role || 'Client'}
                             </span>
 
-                            {!isSelf && (
-                              <div className="flex gap-1.5">
+                            {!isSelf ? (
+                              <div className="flex items-center gap-1.5">
                                 <button
                                   onClick={() => handleChangeUserRole(u.uid, 'Admin')}
                                   disabled={u.role === 'Admin'}
-                                  className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                                  className={`px-2 py-1 rounded text-[10px] font-bold ${
                                     u.role === 'Admin' ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-amber-500 text-slate-900'
                                   }`}
                                 >
@@ -1858,7 +1870,7 @@
                                 <button
                                   onClick={() => handleChangeUserRole(u.uid, 'Petugas')}
                                   disabled={u.role === 'Petugas'}
-                                  className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                                  className={`px-2 py-1 rounded text-[10px] font-bold ${
                                     u.role === 'Petugas' ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-blue-600 text-white'
                                   }`}
                                 >
@@ -1867,13 +1879,22 @@
                                 <button
                                   onClick={() => handleChangeUserRole(u.uid, 'Client')}
                                   disabled={u.role === 'Client' || !u.role}
-                                  className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                                  className={`px-2 py-1 rounded text-[10px] font-bold ${
                                     (u.role === 'Client' || !u.role) ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-slate-800 text-white'
                                   }`}
                                 >
                                   Client
                                 </button>
+                                <button
+                                  onClick={() => handleDeleteUser(u)}
+                                  className="ml-1 bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 px-2 py-1 rounded text-[10px] font-bold transition"
+                                  title="Hapus Akun User"
+                                >
+                                  🗑️ Hapus
+                                </button>
                               </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Akun Anda</span>
                             )}
                           </div>
                         </div>
@@ -2190,7 +2211,6 @@
                     )}
                   </div>
 
-                  {/* FORM INPUT HANYA DITAMPILKAN UNTUK NON-CLIENT */}
                   {!isClient && (
                     <form onSubmit={handleSavePemodal} className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 space-y-3">
                       <h3 className="text-xs font-bold text-slate-700 uppercase">Tambah Pemodal Baru</h3>
@@ -2213,7 +2233,6 @@
                     </form>
                   )}
 
-                  {/* RINCIAN MODAL & HAK LABA INVESTOR (TETAP TAMPIL UNTUK CLIENT) */}
                   <div className="p-3 sm:p-6 space-y-3">
                     <h3 className="text-xs font-bold text-slate-700 uppercase">Rincian Modal & Hak Laba Investor</h3>
 
@@ -2305,7 +2324,6 @@
                     )}
                   </div>
 
-                  {/* RIWAYAT PENAMBAHAN MODAL */}
                   {additionList.length > 0 && (
                     <div className="p-3 sm:p-6 border-t border-slate-200 bg-slate-50/50 space-y-2">
                       <h3 className="text-xs font-bold text-slate-700 uppercase">➕ Riwayat Penambahan Modal</h3>
@@ -2328,7 +2346,6 @@
                     </div>
                   )}
 
-                  {/* RIWAYAT PENARIKAN MODAL */}
                   {withdrawalList.length > 0 && (
                     <div className="p-3 sm:p-6 border-t border-slate-200 bg-slate-50/50 space-y-2">
                       <h3 className="text-xs font-bold text-slate-700 uppercase">📋 Riwayat Penarikan Modal</h3>
@@ -2464,7 +2481,6 @@
                     </div>
                   </div>
 
-                  {/* PRATINJAU METRIK LAPORAN YANG AKAN DICETAK */}
                   <div className="p-4 sm:p-6 space-y-3">
                     <h3 className="text-xs font-bold text-slate-700 uppercase">Ringkasan Data Laporan Terfilter ({recapFilteredTransactions.length} Transaksi)</h3>
                     
@@ -2832,7 +2848,6 @@
                   </div>
                 </div>
 
-                {/* RINGKASAN AKTIVITAS BIAYA SEKERJA MASING-MASING USER */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="p-4 border-b border-slate-200 bg-slate-900 text-white">
                     <h3 className="font-bold text-xs sm:text-sm text-amber-400">👤 Ringkasan Aktivitas & Biaya Per User / PIC</h3>
@@ -2856,7 +2871,6 @@
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                              {/* AKSI PEMBELIAN */}
                               <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80 space-y-1">
                                 <span className="font-bold text-[11px] text-amber-900 block border-b border-amber-200/60 pb-1">
                                   📥 Pembelian ({u.beliCount} Trx)
@@ -2879,7 +2893,6 @@
                                 </div>
                               </div>
 
-                              {/* AKSI PENGOLAHAN */}
                               <div className="bg-blue-50/70 p-2.5 rounded-xl border border-blue-200/80 space-y-1">
                                 <span className="font-bold text-[11px] text-blue-900 block border-b border-blue-200/60 pb-1">
                                   🧪 Pemurnian ({u.olahCount} Trx)
@@ -2894,7 +2907,6 @@
                                 </div>
                               </div>
 
-                              {/* AKSI PENJUALAN */}
                               <div className="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200/80 space-y-1">
                                 <span className="font-bold text-[11px] text-emerald-900 block border-b border-emerald-200/60 pb-1">
                                   💰 Penjualan ({u.jualCount} Trx)
@@ -2932,7 +2944,6 @@
                     />
                   </div>
 
-                  {/* DISPLAY MOBILE (KARTU) */}
                   <div className="p-3 space-y-2.5 sm:hidden">
                     {filteredTransactions.map((t) => {
                       const hargaBeliUnit = t.hargaBeliSatuan || (t.jumlahKotor ? Math.round(t.totalBeli / t.jumlahKotor) : 0);
@@ -2993,7 +3004,6 @@
                     })}
                   </div>
 
-                  {/* DISPLAY DESKTOP (TABEL TERSTUKTUR) */}
                   <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
