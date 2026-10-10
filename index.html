@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Refining Perak System - Firebase Cloud Version</title>
+  <title>Refining Perak System - Cahaya Gemilang</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1175,8 +1175,8 @@
             <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-slate-800">
               <div className="text-center mb-6">
                 <div className="inline-block bg-amber-500 text-slate-900 p-3 rounded-2xl font-black text-3xl mb-2">Ag</div>
-                <h2 className="text-2xl font-bold text-slate-800">Refining Perak System</h2>
-                <p className="text-xs text-slate-500 mt-1">🔥 Powered by Firebase Cloud</p>
+                <h2 className="text-2xl font-bold text-slate-800">Refining Perak V1</h2>
+                <p className="text-xs text-amber-500 font-bold mt-1">Cahaya Gemilang</p>
               </div>
 
               <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
@@ -1553,6 +1553,14 @@
             <nav className="bg-slate-800 border-t border-slate-700">
               <div className="max-w-7xl mx-auto px-2 flex overflow-x-auto no-scrollbar">
                 <button
+                  onClick={() => setActiveTab('flow_info')}
+                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                    activeTab === 'flow_info' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-amber-300'
+                  }`}
+                >
+                  💡 Cara Kerja & Investasi
+                </button>
+                <button
                   onClick={() => setActiveTab('pengambilan')}
                   className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
                     activeTab === 'pengambilan' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
@@ -1631,154 +1639,147 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
-            {/* TAB MENU RECAP LIST & DOWNLOAD PDF */}
-            {activeTab === 'recap_pdf' && (
-              <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-                        📄 Recap List & Cetak Laporan PDF
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Unduh rekapitulasi pembelian, pengolahan, & penjualan dalam format PDF.</p>
-                    </div>
-
-                    <button
-                      onClick={handleGeneratePDF}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-xs w-full sm:w-auto justify-center active:scale-95"
-                    >
-                      📥 Download PDF Sekarang
-                    </button>
-                  </div>
-
-                  <div className="p-4 sm:p-6 space-y-4 bg-slate-50 border-b border-slate-200">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase">1. Pengaturan Filter Periode Laporan</h3>
-
-                    <div className="grid grid-cols-3 bg-slate-200 p-1 rounded-xl text-center">
+            {/* TAB EDUKASI FLOW BISNIS & DORONGAN INVESTASI */}
+            {activeTab === 'flow_info' && (
+              <div className="max-w-5xl mx-auto space-y-6">
+                {/* HERO PROMOTIONAL BANNER */}
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-500/30 relative overflow-hidden">
+                  <div className="relative z-10 space-y-3">
+                    <span className="bg-amber-500 text-slate-900 text-[10px] sm:text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+                      💎 Peluang Investasi Komoditas Real
+                    </span>
+                    <h2 className="text-xl sm:text-3xl font-black leading-tight text-amber-400">
+                      Sistem Pengolahan & Pemurnian Perak Cahaya Gemilang
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                      Bergabunglah bersama kami dalam bisnis pengolahan limbah industri dan bahan mentah menjadi perak murni berkualitas tinggi dengan rasio efisiensi tinggi, pencatatan realtime, dan bagi hasil yang transparan.
+                    </p>
+                    <div className="pt-2 flex flex-wrap gap-3">
                       <button
-                        onClick={() => setRecapFilterType('ALL')}
-                        className={`py-2 text-xs font-bold rounded-lg transition ${
-                          recapFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
-                        }`}
+                        onClick={() => setActiveTab('pemodal')}
+                        className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold px-5 py-3 rounded-xl text-xs shadow-lg transition active:scale-95"
                       >
-                        Semua Waktu
+                        🤝 Mulai Berinvestasi
                       </button>
                       <button
-                        onClick={() => setRecapFilterType('MONTH')}
-                        className={`py-2 text-xs font-bold rounded-lg transition ${
-                          recapFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
-                        }`}
+                        onClick={() => setActiveTab('dashboard')}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold px-5 py-3 rounded-xl text-xs transition"
                       >
-                        Bulanan
-                      </button>
-                      <button
-                        onClick={() => setRecapFilterType('RANGE')}
-                        className={`py-2 text-xs font-bold rounded-lg transition ${
-                          recapFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
-                        }`}
-                      >
-                        Rentang Tanggal
+                        📊 Lihat Performa Realtime
                       </button>
                     </div>
+                  </div>
+                </div>
 
-                    {recapFilterType === 'MONTH' && (
-                      <div className="bg-white p-3 rounded-xl border border-slate-200">
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Bulan:</label>
-                        <input
-                          type="month"
-                          value={recapFilterMonth}
-                          onChange={(e) => setRecapFilterMonth(e.target.value)}
-                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
-                        />
-                      </div>
-                    )}
-
-                    {recapFilterType === 'RANGE' && (
-                      <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Dari Tanggal:</label>
-                          <input
-                            type="date"
-                            value={recapStartDate}
-                            onChange={(e) => setRecapStartDate(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Sampai Tanggal:</label>
-                          <input
-                            type="date"
-                            value={recapEndDate}
-                            onChange={(e) => setRecapEndDate(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <h3 className="text-xs font-bold text-slate-700 uppercase pt-2">2. Informasi Dokumen PDF</h3>
-                    <div className="space-y-3 bg-white p-3 rounded-xl border border-slate-200">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Judul Dokumen PDF</label>
-                        <input
-                          type="text"
-                          value={recapPdfTitle}
-                          onChange={(e) => setRecapPdfTitle(e.target.value)}
-                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold"
-                          placeholder="Judul laporan..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan Tambahan di PDF (Opsional)</label>
-                        <input
-                          type="text"
-                          value={recapPdfNotes}
-                          onChange={(e) => setRecapPdfNotes(e.target.value)}
-                          className="w-full px-3 py-2 border rounded-lg text-xs"
-                          placeholder="e.g. Laporan ini telah disetujui oleh manajemen"
-                        />
-                      </div>
-                    </div>
+                {/* FLOW PROSES BISNIS (4 TAHAP) */}
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200 space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-slate-800 text-base sm:text-lg flex items-center gap-2">
+                      🔄 Alur Bisnis & Pemurnian Perak
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Proses pengolahan komoditas dari bahan mentah hingga menjadi laba bersih secara terstruktur.
+                    </p>
                   </div>
 
-                  {/* PRATINJAU METRIK LAPORAN YANG AKAN DICETAK */}
-                  <div className="p-4 sm:p-6 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase">Ringkasan Data Laporan Terfilter ({recapFilteredTransactions.length} Transaksi)</h3>
-                    
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Bahan Kotor</span>
-                        <span className="font-bold text-sm text-slate-800">
-                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0).toFixed(2)}g
-                        </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* TAHAP 1 */}
+                    <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 space-y-2 relative">
+                      <div className="w-8 h-8 bg-amber-500 text-slate-900 font-black rounded-xl flex items-center justify-center text-sm">
+                        1
                       </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Perak Murni</span>
-                        <span className="font-bold text-sm text-blue-600">
-                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0).toFixed(2)}g
-                        </span>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Omset Jual</span>
-                        <span className="font-bold text-sm text-emerald-600">
-                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0))}
-                        </span>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Laba Bersih</span>
-                        <span className="font-bold text-sm text-amber-600">
-                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0))}
-                        </span>
-                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">📥 Pembelian Mentah</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Tim lapangan membeli bahan mentah (kontaktor, breaker, fuse, dll.) dari supplier/pabrik dengan harga terjangkau.
+                      </p>
+                      <span className="inline-block text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                        Pencatatan Modal & Transport
+                      </span>
                     </div>
 
-                    <button
-                      onClick={handleGeneratePDF}
-                      className="w-full bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold py-3.5 rounded-xl shadow transition active:scale-95 text-xs mt-2"
-                    >
-                      📥 Unduh Dokumen PDF
-                    </button>
+                    {/* TAHAP 2 */}
+                    <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-200/80 space-y-2 relative">
+                      <div className="w-8 h-8 bg-blue-600 text-white font-black rounded-xl flex items-center justify-center text-sm">
+                        2
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">🧪 Pengolahan & Olah</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Bahan kotor diproses dan dimurnikan menggunakan teknik refining kimiawi untuk menghasilkan Perak Murni (Ag).
+                      </p>
+                      <span className="inline-block text-[10px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">
+                        Kalkulasi Kadar Efisiensi %
+                      </span>
+                    </div>
+
+                    {/* TAHAP 3 */}
+                    <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-2 relative">
+                      <div className="w-8 h-8 bg-emerald-600 text-white font-black rounded-xl flex items-center justify-center text-sm">
+                        3
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">💰 Penjualan Hasil</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Perak murni dijual langsung ke toko/pembeli industri sesuai harga pasar perak murni terkini per gram.
+                      </p>
+                      <span className="inline-block text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                        Omset & Realisasi Laba
+                      </span>
+                    </div>
+
+                    {/* TAHAP 4 */}
+                    <div className="bg-slate-100 p-4 rounded-2xl border border-slate-300 space-y-2 relative">
+                      <div className="w-8 h-8 bg-slate-900 text-amber-400 font-black rounded-xl flex items-center justify-center text-sm">
+                        4
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">🤝 Bagi Hasil Investor</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Laba bersih didistribusikan secara otomatis kepada investor sesuai dengan porsi persentase modal aktif.
+                      </p>
+                      <span className="inline-block text-[10px] font-bold text-slate-800 bg-slate-200 px-2 py-0.5 rounded-md">
+                        Dividen Otomatis & Transparan
+                      </span>
+                    </div>
                   </div>
+                </div>
+
+                {/* KEUNGGULAN BERINVESTASI */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                    <div className="text-2xl">📈</div>
+                    <h4 className="font-bold text-slate-800 text-sm">Margin Laba Tinggi</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Pengolahan barang mentah komponen listrik memiliki *margin value* yang jauh lebih tinggi dibanding perdagangan fisik biasa.
+                    </p>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                    <div className="text-2xl">🛡️</div>
+                    <h4 className="font-bold text-slate-800 text-sm">Laporan Akuntabel & Realtime</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Semua transaksi pembelian, biaya operasional, hingga arus kas neraca dicatat langsung dan dapat didownload dalam PDF resmi.
+                    </p>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                    <div className="text-2xl">⚡</div>
+                    <h4 className="font-bold text-slate-800 text-sm">Sangat Fleksibel</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Pemodal berhak melakukan penambahan modal atau penarikan sebagian modal sesuai dengan syarat & kesepakatan operasional.
+                    </p>
+                  </div>
+                </div>
+
+                {/* CALL TO ACTION BOTTON */}
+                <div className="bg-amber-500 text-slate-900 rounded-2xl p-6 text-center space-y-3 shadow-md">
+                  <h3 className="font-black text-lg sm:text-xl">Tertarik Menjadi Bagian Dari Investor Kami?</h3>
+                  <p className="text-xs font-semibold text-slate-800 max-w-xl mx-auto">
+                    Hubungi tim pengelola atau daftarkan nama Anda langsung di menu **Pemodal** untuk mulai memutar modal Anda di sektor riil.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('pemodal')}
+                    className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold px-6 py-3 rounded-xl text-xs shadow transition active:scale-95"
+                  >
+                    Masuk Ke Halaman Pemodal ➔
+                  </button>
                 </div>
               </div>
             )}
@@ -2309,6 +2310,158 @@
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB RECAP PDF */}
+            {activeTab === 'recap_pdf' && (
+              <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                        📄 Recap List & Cetak Laporan PDF
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Unduh rekapitulasi pembelian, pengolahan, & penjualan dalam format PDF.</p>
+                    </div>
+
+                    <button
+                      onClick={handleGeneratePDF}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-xs w-full sm:w-auto justify-center active:scale-95"
+                    >
+                      📥 Download PDF Sekarang
+                    </button>
+                  </div>
+
+                  <div className="p-4 sm:p-6 space-y-4 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase">1. Pengaturan Filter Periode Laporan</h3>
+
+                    <div className="grid grid-cols-3 bg-slate-200 p-1 rounded-xl text-center">
+                      <button
+                        onClick={() => setRecapFilterType('ALL')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Semua Waktu
+                      </button>
+                      <button
+                        onClick={() => setRecapFilterType('MONTH')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Bulanan
+                      </button>
+                      <button
+                        onClick={() => setRecapFilterType('RANGE')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Rentang Tanggal
+                      </button>
+                    </div>
+
+                    {recapFilterType === 'MONTH' && (
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Bulan:</label>
+                        <input
+                          type="month"
+                          value={recapFilterMonth}
+                          onChange={(e) => setRecapFilterMonth(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {recapFilterType === 'RANGE' && (
+                      <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Dari Tanggal:</label>
+                          <input
+                            type="date"
+                            value={recapStartDate}
+                            onChange={(e) => setRecapStartDate(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Sampai Tanggal:</label>
+                          <input
+                            type="date"
+                            value={recapEndDate}
+                            onChange={(e) => setRecapEndDate(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <h3 className="text-xs font-bold text-slate-700 uppercase pt-2">2. Informasi Dokumen PDF</h3>
+                    <div className="space-y-3 bg-white p-3 rounded-xl border border-slate-200">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Judul Dokumen PDF</label>
+                        <input
+                          type="text"
+                          value={recapPdfTitle}
+                          onChange={(e) => setRecapPdfTitle(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold"
+                          placeholder="Judul laporan..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan Tambahan di PDF (Opsional)</label>
+                        <input
+                          type="text"
+                          value={recapPdfNotes}
+                          onChange={(e) => setRecapPdfNotes(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-xs"
+                          placeholder="e.g. Laporan ini telah disetujui oleh manajemen"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PRATINJAU METRIK LAPORAN YANG AKAN DICETAK */}
+                  <div className="p-4 sm:p-6 space-y-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase">Ringkasan Data Laporan Terfilter ({recapFilteredTransactions.length} Transaksi)</h3>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Bahan Kotor</span>
+                        <span className="font-bold text-sm text-slate-800">
+                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0).toFixed(2)}g
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Perak Murni</span>
+                        <span className="font-bold text-sm text-blue-600">
+                          {recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0).toFixed(2)}g
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Total Omset Jual</span>
+                        <span className="font-bold text-sm text-emerald-600">
+                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0))}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-sans block uppercase">Laba Bersih</span>
+                        <span className="font-bold text-sm text-amber-600">
+                          {formatRupiah(recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0))}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleGeneratePDF}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold py-3.5 rounded-xl shadow transition active:scale-95 text-xs mt-2"
+                    >
+                      📥 Unduh Dokumen PDF
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
