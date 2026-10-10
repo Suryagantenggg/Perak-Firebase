@@ -98,6 +98,19 @@
       const [additionList, setAdditionList] = useState([]);
       const [userList, setUserList] = useState([]);
 
+      // STATE CUSTOMER SERVICE
+      const [csInfo, setCsInfo] = useState({
+        namaCs: 'Customer Service CG',
+        noWa: '6281234567890',
+        pesanDefault: 'Halo Admin, saya tertarik menjadi investor di Refining Perak Cahaya Gemilang.'
+      });
+
+      const [formCs, setFormCs] = useState({
+        namaCs: '',
+        noWa: '',
+        pesanDefault: ''
+      });
+
       const [newCatCode, setNewCatCode] = useState('');
       const [newCatName, setNewCatName] = useState('');
 
@@ -186,7 +199,7 @@
             const { onAuthStateChanged, doc, getDoc } = window.fbFS;
             onAuthStateChanged(window.fbAuth, async (user) => {
               if (user) {
-                let userRole = 'Client'; // DEFAULT ROLE JIKA TIDAK DITEMUKAN
+                let userRole = 'Client';
                 let displayName = user.displayName || user.email.split('@')[0];
 
                 try {
@@ -205,6 +218,28 @@
                 setCurrentUser(null);
               }
             });
+          }
+        }, 100);
+      }, []);
+
+      // LISTEN DATA CUSTOMER SERVICE DARI FIRESTORE
+      useEffect(() => {
+        const checkCs = setInterval(() => {
+          if (window.fbDb) {
+            clearInterval(checkCs);
+            const { doc, onSnapshot } = window.fbFS;
+            const unsubscribe = onSnapshot(doc(window.fbDb, "settings", "customer_service"), (docSnap) => {
+              if (docSnap.exists()) {
+                const data = docSnap.data();
+                setCsInfo(data);
+                setFormCs({
+                  namaCs: data.namaCs || '',
+                  noWa: data.noWa || '',
+                  pesanDefault: data.pesanDefault || ''
+                });
+              }
+            });
+            return () => unsubscribe();
           }
         }, 100);
       }, []);
@@ -417,7 +452,6 @@
         }
       };
 
-      // FITUR HAPUS AKUN USER OLEH ADMIN
       const handleDeleteUser = async (targetUser) => {
         if (targetUser.uid === currentUser.uid) {
           return alert("Anda tidak dapat menghapus akun Anda sendiri!");
@@ -434,6 +468,40 @@
             setLoading(false);
             alert('Gagal menghapus user: ' + err.message);
           }
+        }
+      };
+
+      // SIMPAN KONTAK CUSTOMER SERVICE
+      const handleSaveCsInfo = async (e) => {
+        e.preventDefault();
+        if (currentUser.role !== 'Admin') {
+          return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
+        }
+
+        let cleanNoWa = formCs.noWa.replace(/[^0-9]/g, '');
+        if (cleanNoWa.startsWith('0')) {
+          cleanNoWa = '62' + cleanNoWa.substring(1);
+        }
+
+        if (!cleanNoWa) {
+          return alert('Nomor WhatsApp harus diisi dengan angka yang valid!');
+        }
+
+        setLoading(true);
+        try {
+          const { doc, setDoc } = window.fbFS;
+          await setDoc(doc(window.fbDb, "settings", "customer_service"), {
+            namaCs: formCs.namaCs.trim() || 'Customer Service',
+            noWa: cleanNoWa,
+            pesanDefault: formCs.pesanDefault.trim() || 'Halo, saya ingin bertanya mengenai investasi perak.',
+            updatedAt: Date.now()
+          });
+
+          setLoading(false);
+          showToast('💬 Kontak Customer Service berhasil diperbarui!');
+        } catch (err) {
+          setLoading(false);
+          alert('Gagal menyimpan kontak CS: ' + err.message);
         }
       };
 
@@ -1186,6 +1254,9 @@
       const pendingOlahList = transactions.filter(t => t.status === 'MENUNGGU_OLAH');
       const pendingJualList = transactions.filter(t => t.status === 'SELESAI_OLAH');
 
+      // TAUTAN WHATSAPP CUSTOMER SERVICE
+      const waUrl = `https://wa.me/${csInfo.noWa || '6281234567890'}?text=${encodeURIComponent(csInfo.pesanDefault || 'Halo, saya tertarik berinvestasi.')}`;
+
       if (!currentUser) {
         return (
           <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -1741,7 +1812,7 @@
                       </div>
                       <h4 className="font-bold text-slate-900 text-sm">🧪 Pengolahan & Olah</h4>
                       <p className="text-[11px] text-slate-600 leading-relaxed">
-                        Bahan kotor diproses dan dimurnikan menggunakan teknik refining kimiawi untuk menghasilkan Perak Murni (Ag).
+                        Bahan kotor dipproses dan dimurnikan menggunakan teknik refining kimiawi untuk menghasilkan Perak Murni (Ag).
                       </p>
                       <span className="inline-block text-[10px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">
                         Kalkulasi Kadar Efisiensi %
@@ -1805,25 +1876,102 @@
                   </div>
                 </div>
 
-                {/* CALL TO ACTION BUTTON */}
-                <div className="bg-amber-500 text-slate-900 rounded-2xl p-6 text-center space-y-3 shadow-md">
-                  <h3 className="font-black text-lg sm:text-xl">Tertarik Menjadi Bagian Dari Investor Kami?</h3>
-                  <p className="text-xs font-semibold text-slate-800 max-w-xl mx-auto">
-                    Hubungi tim pengelola kami untuk konsultasi dan pendaftaran resmi sebagai pemodal aktif.
-                  </p>
-                  <button
-                    onClick={() => setActiveTab('dashboard')}
-                    className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold px-6 py-3 rounded-xl text-xs shadow transition active:scale-95"
-                  >
-                    Lihat Performa Laporan Usaha ➔
-                  </button>
+                {/* CALL TO ACTION CS & INVESTASI */}
+                <div className="bg-emerald-600 text-white rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-xl relative overflow-hidden">
+                  <div className="space-y-2 relative z-10">
+                    <span className="bg-emerald-900/60 text-emerald-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                      💬 Layanan Customer Service Active
+                    </span>
+                    <h3 className="font-black text-xl sm:text-2xl text-amber-300">Tertarik Menjadi Bagian Dari Investor Kami?</h3>
+                    <p className="text-xs sm:text-sm text-emerald-100 max-w-xl mx-auto leading-relaxed">
+                      Hubungi tim Customer Service ({csInfo.namaCs || 'Cahaya Gemilang'}) kami untuk konsultasi, penjelasan alur bisnis, serta pendaftaran resmi investor.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-center relative z-10">
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold px-6 py-3.5 rounded-2xl text-xs sm:text-sm shadow-xl transition transform active:scale-95 flex items-center gap-2 border border-emerald-300"
+                    >
+                      <span className="text-lg">💬</span> Hubungi CS via WhatsApp (+{csInfo.noWa}) ➔
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* TAB KONTROL USER / MANAJEMEN ROLE & HAPUS AKUN */}
+            {/* TAB KONTROL USER & INFORMASI CS (ADMIN ONLY) */}
             {activeTab === 'users' && currentUser.role === 'Admin' && (
-              <div className="max-w-4xl mx-auto space-y-4">
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* FORM REGISTRASI / EDIT KONTAK CUSTOMER SERVICE */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="bg-emerald-800 text-white p-4 sm:p-6 flex justify-between items-center">
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                        💬 Pengaturan Kontak Customer Service
+                      </h2>
+                      <p className="text-xs text-emerald-200 mt-0.5">Atur nomor WhatsApp CS yang tampil di menu Cara Kerja & Investasi.</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveCsInfo} className="p-4 sm:p-6 space-y-4 bg-slate-50">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nama / Label CS</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. CS Utama Cahaya Gemilang"
+                          value={formCs.namaCs}
+                          onChange={(e) => setFormCs({ ...formCs, namaCs: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nomor WhatsApp CS (Awali 62/08)</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. 6281234567890"
+                          value={formCs.noWa}
+                          onChange={(e) => setFormCs({ ...formCs, noWa: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm font-mono bg-white font-bold text-slate-800"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Pesan Otomatis WhatsApp (Default Message)</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Pesan pertama saat calon investor klik WhatsApp..."
+                        value={formCs.pesanDefault}
+                        onChange={(e) => setFormCs({ ...formCs, pesanDefault: e.target.value })}
+                        className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white"
+                      />
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2">
+                      <div className="text-[10px] text-slate-500">
+                        Status Saat Ini: <strong className="text-emerald-700">+{csInfo.noWa}</strong> ({csInfo.namaCs})
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow transition active:scale-95"
+                      >
+                        Simpan Kontak CS ➔
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* KONTROL PENGGUNA */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="bg-slate-900 text-white p-4 sm:p-6 flex justify-between items-center">
                     <div>
@@ -1998,7 +2146,6 @@
                   </div>
                 </div>
 
-                {/* Buku Mutasi Displayed as Cards on Mobile */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="p-4 border-b border-slate-200">
                     <h3 className="font-bold text-slate-800 text-xs sm:text-sm">📖 Buku Mutasi Arus Kas & Saldo</h3>
