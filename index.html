@@ -368,7 +368,7 @@
           const { createUserWithEmailAndPassword, doc, setDoc } = window.fbFS;
           const userCred = await createUserWithEmailAndPassword(window.fbAuth, signupEmail.trim(), signupPassword.trim());
           
-          // DEFAULT ROLE DIUBAH MENJADI "Client"
+          // DEFAULT ROLE IS "Client"
           await setDoc(doc(window.fbDb, "users", userCred.user.uid), {
             nama: signupNama.trim(),
             email: signupEmail.trim(),
@@ -420,6 +420,10 @@
 
       const handleSavePemodal = async (e) => {
         e.preventDefault();
+        if (currentUser.role === 'Client') {
+          return alert('Akses ditolak! Role Client hanya dapat melihat laporan.');
+        }
+
         const modalNominal = parseFloat(formPemodal.jumlahModal) || 0;
         if (!formPemodal.namaPemodal.trim() || modalNominal <= 0) {
           return alert('Nama Pemodal dan Jumlah Modal harus diisi dengan benar!');
@@ -1553,7 +1557,7 @@
               </div>
             </div>
 
-            {/* TAB SCROLLABLE MOBILE - FILTERING BERDASARKAN ROLE CLIENT */}
+            {/* TAB SCROLLABLE MOBILE */}
             <nav className="bg-slate-800 border-t border-slate-700">
               <div className="max-w-7xl mx-auto px-2 flex overflow-x-auto no-scrollbar">
                 <button
@@ -1607,16 +1611,14 @@
                   💳 4. Neraca Kas
                 </button>
 
-                {!isClient && (
-                  <button
-                    onClick={() => setActiveTab('pemodal')}
-                    className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
-                      activeTab === 'pemodal' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
-                    }`}
-                  >
-                    🤝 Pemodal ({pemodalList.length})
-                  </button>
-                )}
+                <button
+                  onClick={() => setActiveTab('pemodal')}
+                  className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition ${
+                    activeTab === 'pemodal' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
+                  }`}
+                >
+                  🤝 Pemodal ({pemodalList.length})
+                </button>
 
                 <button
                   onClick={() => setActiveTab('recap_pdf')}
@@ -1678,14 +1680,12 @@
                       Bergabunglah bersama kami dalam bisnis pengolahan limbah industri dan bahan mentah menjadi perak murni berkualitas tinggi dengan rasio efisiensi tinggi, pencatatan realtime, dan bagi hasil yang transparan.
                     </p>
                     <div className="pt-2 flex flex-wrap gap-3">
-                      {!isClient && (
-                        <button
-                          onClick={() => setActiveTab('pemodal')}
-                          className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold px-5 py-3 rounded-xl text-xs shadow-lg transition active:scale-95"
-                        >
-                          🤝 Kelola Pemodal
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setActiveTab('pemodal')}
+                        className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold px-5 py-3 rounded-xl text-xs shadow-lg transition active:scale-95"
+                      >
+                        🤝 Lihat Rincian Pemodal & Bagi Hasil
+                      </button>
                       <button
                         onClick={() => setActiveTab('dashboard')}
                         className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold px-5 py-3 rounded-xl text-xs transition"
@@ -2075,7 +2075,7 @@
             )}
 
             {/* TAB PEMODAL & BAGI HASIL */}
-            {activeTab === 'pemodal' && !isClient && (
+            {activeTab === 'pemodal' && (
               <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
                 <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                   <div className="flex flex-col gap-3 mb-3 pb-3 border-b border-slate-100">
@@ -2170,45 +2170,50 @@
                 <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                   <div className="bg-slate-900 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <h2 className="text-base sm:text-lg font-bold">🤝 Input & Kelola Pemodal</h2>
-                      <p className="text-xs text-slate-400">Data investor & kalkulasi bagi hasil.</p>
+                      <h2 className="text-base sm:text-lg font-bold">🤝 Informasi Investor & Bagi Hasil</h2>
+                      <p className="text-xs text-slate-400">Rincian porsi penyertaan modal & estimasi hak dividen.</p>
                     </div>
 
-                    <div className="bg-slate-800 p-2 rounded-xl border border-slate-700 flex items-center gap-2 w-full sm:w-auto justify-between">
-                      <label className="text-xs font-bold text-slate-300">Nisbah Pengelola (%):</label>
-                      <input 
-                        type="number" 
-                        inputMode="numeric"
-                        min="0" 
-                        max="100" 
-                        value={nisbahPengelolaPct} 
-                        onChange={(e) => setNisbahPengelolaPct(parseFloat(e.target.value) || 0)} 
-                        className="w-16 px-2 py-1 text-xs font-bold text-center bg-slate-900 border border-slate-600 rounded-lg text-amber-400" 
-                      />
-                    </div>
+                    {!isClient && (
+                      <div className="bg-slate-800 p-2 rounded-xl border border-slate-700 flex items-center gap-2 w-full sm:w-auto justify-between">
+                        <label className="text-xs font-bold text-slate-300">Nisbah Pengelola (%):</label>
+                        <input 
+                          type="number" 
+                          inputMode="numeric"
+                          min="0" 
+                          max="100" 
+                          value={nisbahPengelolaPct} 
+                          onChange={(e) => setNisbahPengelolaPct(parseFloat(e.target.value) || 0)} 
+                          className="w-16 px-2 py-1 text-xs font-bold text-center bg-slate-900 border border-slate-600 rounded-lg text-amber-400" 
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  <form onSubmit={handleSavePemodal} className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase">Tambah Pemodal Baru</h3>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input type="text" required placeholder="Nama Pemodal / Investor" value={formPemodal.namaPemodal} onChange={(e) => setFormPemodal({ ...formPemodal, namaPemodal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                      <input type="number" inputMode="numeric" required placeholder="Jumlah Modal Awal (Rp)" value={formPemodal.jumlahModal} onChange={(e) => setFormPemodal({ ...formPemodal, jumlahModal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" />
-                    </div>
+                  {/* FORM INPUT HANYA DITAMPILKAN UNTUK NON-CLIENT */}
+                  {!isClient && (
+                    <form onSubmit={handleSavePemodal} className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 space-y-3">
+                      <h3 className="text-xs font-bold text-slate-700 uppercase">Tambah Pemodal Baru</h3>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input type="text" required placeholder="Nama Pemodal / Investor" value={formPemodal.namaPemodal} onChange={(e) => setFormPemodal({ ...formPemodal, namaPemodal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                        <input type="number" inputMode="numeric" required placeholder="Jumlah Modal Awal (Rp)" value={formPemodal.jumlahModal} onChange={(e) => setFormPemodal({ ...formPemodal, jumlahModal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" />
+                      </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input type="date" required value={formPemodal.tanggalBergabung} onChange={(e) => setFormPemodal({ ...formPemodal, tanggalBergabung: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                      <input type="text" placeholder="Kontak / No. HP" value={formPemodal.kontak} onChange={(e) => setFormPemodal({ ...formPemodal, kontak: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input type="date" required value={formPemodal.tanggalBergabung} onChange={(e) => setFormPemodal({ ...formPemodal, tanggalBergabung: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                        <input type="text" placeholder="Kontak / No. HP" value={formPemodal.kontak} onChange={(e) => setFormPemodal({ ...formPemodal, kontak: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                      </div>
 
-                    <input type="text" placeholder="Catatan / Keterangan (Opsional)" value={formPemodal.catatan} onChange={(e) => setFormPemodal({ ...formPemodal, catatan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                      <input type="text" placeholder="Catatan / Keterangan (Opsional)" value={formPemodal.catatan} onChange={(e) => setFormPemodal({ ...formPemodal, catatan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
 
-                    <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow active:scale-95">
-                      Simpan Pemodal Baru ➔
-                    </button>
-                  </form>
+                      <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow active:scale-95">
+                        Simpan Pemodal Baru ➔
+                      </button>
+                    </form>
+                  )}
 
-                  {/* CARDS DESAIN KHUSUS MOBILE UNTUK PEMODAL */}
+                  {/* RINCIAN MODAL & HAK LABA INVESTOR (TETAP TAMPIL UNTUK CLIENT) */}
                   <div className="p-3 sm:p-6 space-y-3">
                     <h3 className="text-xs font-bold text-slate-700 uppercase">Rincian Modal & Hak Laba Investor</h3>
 
