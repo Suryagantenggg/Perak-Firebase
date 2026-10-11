@@ -1263,7 +1263,11 @@
         return true;
       });
 
-      const totalBarangKotor = filteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
+      // HANYA MENGHITUNG BARANG MENTAH YANG BELUM DIOLAH (STATUS: MENUNGGU_OLAH)
+      const totalBarangKotor = filteredTransactions
+        .filter(t => t.status === 'MENUNGGU_OLAH')
+        .reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
+
       const totalPerakMurni = filteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
       const totalBeliModal = filteredTransactions.reduce((acc, t) => acc + (t.totalBeli || 0), 0);
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
@@ -1360,7 +1364,7 @@
           else if (recapFilterType === 'RANGE') filterPeriodeText = `Periode: ${recapStartDate || 'Awal'} s/d ${recapEndDate || 'Akhir'}`;
           doc.text(`Filter Periode: ${filterPeriodeText}`, 14, 26);
 
-          const pdfKotor = recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
+          const pdfKotor = recapFilteredTransactions.filter(t => t.status === 'MENUNGGU_OLAH').reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
           const pdfMurni = recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
           const pdfBeli = recapFilteredTransactions.reduce((acc, t) => acc + (t.totalBeli || 0), 0);
           const pdfOmset = recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
@@ -1370,7 +1374,7 @@
           doc.rect(14, 29, 269, 14, 'F');
           doc.setFontSize(8);
           doc.setFont('helvetica', 'bold');
-          doc.text(`Total Kotor: ${pdfKotor.toFixed(2)}g  |  Total Murni: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
+          doc.text(`Total Mentah Belum Olah: ${pdfKotor.toFixed(2)}g  |  Total Murni: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
 
           const tableColumn = [
             "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor(g)", "H.Beli/g", "Total Beli", "Murni(g)", "H.Jual/g", "Total Jual", "Laba Bersih", "Status"
@@ -1567,7 +1571,7 @@
           return wDate.startsWith(neracaFilterMonth);
         } else if (neracaFilterType === 'RANGE') {
           if (!wDate) return false;
-          if (neracaStartDate && wDate < neracaStartDate) return false;
+          if (neracaStartDate && wDate < wDate) return false;
           if (neracaEndDate && wDate > neracaEndDate) return false;
           return true;
         }
@@ -1595,8 +1599,8 @@
           return aDate.startsWith(neracaFilterMonth);
         } else if (neracaFilterType === 'RANGE') {
           if (!aDate) return false;
-          if (neracaStartDate && aDate < neracaStartDate) return false;
-          if (neracaEndDate && aDate > neracaEndDate) return false;
+          if (neracaStartDate && aDate < aDate) return false;
+          if (neracaEndDate && aDate > aDate) return false;
           return true;
         }
         return true;
@@ -3570,7 +3574,7 @@
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Barang Mentah</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Barang Mentah (Belum Olah)</span>
                     <p className="text-base sm:text-2xl font-black text-slate-800 mt-0.5">{totalBarangKotor.toFixed(2)}g</p>
                     <span className="text-[10px] text-slate-500 block">Beli: {formatRupiah(totalBeliModal)}</span>
                   </div>
