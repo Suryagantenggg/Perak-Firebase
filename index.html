@@ -12,6 +12,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
   <style>
+    /* Custom scrollbar halus untuk mobile navigation */
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -74,7 +75,7 @@
 
     function App() {
       const [currentUser, setCurrentUser] = useState(null);
-      const [authMode, setAuthMode] = useState('login');
+      const [authMode, setAuthMode] = useState('login'); // 'login', 'signup', 'forgot'
       const [loginEmail, setLoginEmail] = useState('');
       const [loginPassword, setLoginPassword] = useState('');
 
@@ -135,7 +136,7 @@
         return `${y}-${m}`;
       };
 
-      // STATE FORM INPUT TOOLS (BAHAN/ALAT PENDUKUNG)
+      // STATE FORM INPUT TOOLS (BAHAN/ALAT PENDUKUNG PEKERJAAN)
       const [formTools, setFormTools] = useState({
         tanggal: getTodayFormatted(),
         namaTools: '',
@@ -245,7 +246,7 @@
         }, 100);
       }, []);
 
-      // LISTEN DATA NISBAH PENGELOLA
+      // LISTEN DATA NISBAH PENGELOLA REALTIME SINKRON DARI FIRESTORE
       useEffect(() => {
         let unsub = null;
         const checkNisbah = setInterval(() => {
@@ -272,6 +273,7 @@
         };
       }, []);
 
+      // HANDLER UNTUK MENGUBAH DAN MENYIMPAN NISBAH LANGSUNG KE FIRESTORE
       const handleUpdateNisbah = async (newVal) => {
         const pctVal = parseFloat(newVal) || 0;
         setNisbahPengelolaPct(pctVal);
@@ -317,7 +319,7 @@
         };
       }, [currentUser]);
 
-      // LISTEN DATA CUSTOMER SERVICE
+      // LISTEN DATA CUSTOMER SERVICE DARI FIRESTORE
       useEffect(() => {
         let unsub = null;
         const checkCs = setInterval(() => {
@@ -344,7 +346,7 @@
         };
       }, []);
 
-      // FETCH DAFTAR USERS
+      // FETCH DAFTAR USERS (HANYA UNTUK ADMIN)
       useEffect(() => {
         if (!currentUser || currentUser.role !== 'Admin') return;
 
@@ -367,7 +369,7 @@
         };
       }, [currentUser]);
 
-      // SINKRONISASI NAMA LOGIN
+      // SINKRONISASI NAMA LOGIN DENGAN FORM INPUT
       useEffect(() => {
         if (currentUser && currentUser.nama) {
           setFormAmbil(prev => ({ ...prev, pengambilSelect: currentUser.nama }));
@@ -450,6 +452,7 @@
         };
       }, [currentUser]);
 
+      // FETCH DATA PENARIKAN MODAL
       useEffect(() => {
         if (!currentUser) return;
 
@@ -474,6 +477,7 @@
         };
       }, [currentUser]);
 
+      // FETCH DATA PENARIKAN LABA BERSIH (DIVIDEN)
       useEffect(() => {
         if (!currentUser) return;
 
@@ -498,6 +502,7 @@
         };
       }, [currentUser]);
 
+      // FETCH DATA PENAMBAHAN MODAL
       useEffect(() => {
         if (!currentUser) return;
 
@@ -647,7 +652,7 @@
           return alert("Anda tidak dapat menghapus akun Anda sendiri!");
         }
 
-        if (window.confirm(`Yakin ingin menghapus akun user "${targetUser.nama || targetUser.email}"?`)) {
+        if (window.confirm(`Yakin ingin menghapus akun user "${targetUser.nama || targetUser.email}"? Pengguna ini tidak akan bisa mengakses sistem lagi.`)) {
           setLoading(true);
           try {
             const { doc, deleteDoc } = window.fbFS;
@@ -694,7 +699,7 @@
         }
       };
 
-      // HANDLER SIMPAN PEMBELIAN TOOLS / BAHAN PENDUKUNG
+      // HANDLER SIMPAN TOOLS / BAHAN PENDUKUNG PEKERJAAN
       const handleSaveTools = async (e) => {
         e.preventDefault();
         if (currentUser.role === 'Client') {
@@ -834,6 +839,7 @@
         }
       };
 
+      // SIMPAN PENARIKAN LABA BERSIH (DIVIDEN) DENGAN BATAS MAKSIMAL
       const handleSaveProfitWithdrawal = async (e) => {
         e.preventDefault();
         if (currentUser.role !== 'Admin') {
@@ -843,6 +849,7 @@
         const nominal = parseFloat(formProfitWithdraw.jumlahTarik) || 0;
         if (!selectedPemodalProfitWD || nominal <= 0) return alert('Nominal penarikan laba harus > 0!');
 
+        // HITUNG BATAS MAKSIMAL SISA LABA YANG BISA DITARIK
         const totalTambahan = additionList
           .filter(a => a.pemodalId === selectedPemodalProfitWD.id)
           .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
@@ -979,7 +986,7 @@
           return alert('Akses ditolak! Fitur ini hanya untuk Admin.');
         }
 
-        if (window.confirm('Hapus data pemodal ini dari Firestore?')) {
+        if (window.confirm('Hapus data pemodal ini dari Firestore? (Riwayat penarikan & penambahan modal terkait akan terpengaruh)')) {
           setLoading(true);
           try {
             const { doc, deleteDoc } = window.fbFS;
@@ -1262,7 +1269,7 @@
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
-      // AKUMULASI STATS USER
+      // AKUMULASI AKTIVITAS DAN BIAYA MASING-MASING USER
       const userActivityStats = (() => {
         const statsMap = {};
 
@@ -1315,7 +1322,7 @@
         return Object.values(statsMap);
       })();
 
-      // RECAP PDF TRANSAKSI
+      // FILTER TRANSAKSI UNTUK TAB RECAP PDF
       const recapFilteredTransactions = transactions.filter(t => {
         const tDate = t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil;
 
@@ -1331,6 +1338,7 @@
         return true;
       });
 
+      // EKSPORE PDF DENGAN JSPDF & AUTOTABLE
       const handleGeneratePDF = () => {
         try {
           const { jsPDF } = window.jspdf;
@@ -1479,7 +1487,7 @@
         }
       };
 
-      // FILTER PEMODAL
+      // FILTER KHUSUS PEMODAL DENGAN ACUAN TANGGAL PENJUALAN
       const pemodalFilteredTransactions = transactions.filter(t => {
         if (t.status !== 'TERJUAL') return false;
         const tJualDate = t.tanggalPenjualan;
@@ -1508,7 +1516,7 @@
       const bagianPengelolaNominal = (pemodalTotalLabaPeriod * nisbahPengelolaPct) / 100;
       const totalLabaUntukPemodal = pemodalTotalLabaPeriod - bagianPengelolaNominal;
 
-      // KALKULASI NERACA KAS TERMASUK BIAYA TOOLS
+      // KALKULASI ARUS KAS & NERACA TERMASUK BIAYA TOOLS
       const neracaFilteredTransactions = transactions.filter(t => {
         const tDate = t.tanggalPenjualan || t.tanggalOlah || t.tanggalAmbil;
 
@@ -1758,7 +1766,7 @@
               {authMode === 'forgot' && (
                 <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Masukkan alamat email terdaftar Anda untuk reset password.
+                    Masukkan alamat email terdaftar Anda. Kami akan mengirimkan instruksi dan tautan untuk membuat password baru.
                   </p>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email Terdaftar</label>
@@ -1812,7 +1820,7 @@
             </div>
           )}
 
-          {/* MODAL PENARIKAN LABA BERSIH */}
+          {/* MODAL FORM PENARIKAN LABA BERSIH (DIVIDEN) DENGAN BATAS MAKSIMAL */}
           {selectedPemodalProfitWD && currentUser.role === 'Admin' && (
             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
               <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
@@ -1821,7 +1829,12 @@
                     <h3 className="font-bold text-sm text-amber-400">💰 Penarikan Laba Bersih (Dividen)</h3>
                     <p className="text-xs text-slate-300 font-semibold">{selectedPemodalProfitWD.namaPemodal}</p>
                   </div>
-                  <button onClick={() => setSelectedPemodalProfitWD(null)} className="text-slate-400 hover:text-white p-2 text-xl font-bold">✕</button>
+                  <button 
+                    onClick={() => setSelectedPemodalProfitWD(null)}
+                    className="text-slate-400 hover:text-white p-2 text-xl font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
 
                 {(() => {
@@ -1848,41 +1861,287 @@
                     <form onSubmit={handleSaveProfitWithdrawal} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
                       <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-1">
                         <div className="flex justify-between text-xs">
-                          <span className="text-slate-500 font-medium">Porsi Modal:</span>
+                          <span className="text-slate-500 font-medium">Porsi Penyertaan Modal:</span>
                           <span className="font-bold text-slate-800">{porsiPct.toFixed(2)}%</span>
                         </div>
                         <div className="flex justify-between text-xs">
-                          <span className="text-slate-500 font-medium">Hak Laba Periode Ini:</span>
+                          <span className="text-slate-500 font-medium">Hak Laba Bersih Periode Ini:</span>
                           <span className="font-bold text-emerald-700">+{formatRupiah(hakLabaNominal)}</span>
                         </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Laba Sudah Ditarik:</span>
+                          <span className="font-bold text-red-600">-{formatRupiah(totalLabaDitarik)}</span>
+                        </div>
                         <div className="flex justify-between text-xs border-t border-emerald-200 pt-1 mt-1">
-                          <span className="text-slate-700 font-bold">Maksimal Boleh Ditarik:</span>
+                          <span className="text-slate-700 font-bold">Maksimal Laba Boleh Ditarik:</span>
                           <span className="font-black text-emerald-800">{formatRupiah(sisaLabaBelumDitarik)}</span>
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal</label>
-                        <input type="date" required value={formProfitWithdraw.tanggal} onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, tanggal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penarikan Laba</label>
+                        <input 
+                          type="date" 
+                          required 
+                          value={formProfitWithdraw.tanggal} 
+                          onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, tanggal: e.target.value })} 
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                        />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Laba Ditarik (Rp)</label>
-                        <input type="number" inputMode="numeric" max={sisaLabaBelumDitarik} required value={formProfitWithdraw.jumlahTarik} onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, jumlahTarik: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" />
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                          Jumlah Laba Ditarik (Maks: {formatRupiah(sisaLabaBelumDitarik)})
+                        </label>
+                        <input 
+                          type="number" 
+                          inputMode="numeric"
+                          max={sisaLabaBelumDitarik}
+                          required 
+                          placeholder={`Maksimal ${sisaLabaBelumDitarik}`}
+                          value={formProfitWithdraw.jumlahTarik} 
+                          onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, jumlahTarik: e.target.value })} 
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" 
+                        />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan</label>
-                        <input type="text" placeholder="Catatan penarikan..." value={formProfitWithdraw.catatan} onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, catatan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan Penarikan</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Penarikan dividen bulanan" 
+                          value={formProfitWithdraw.catatan} 
+                          onChange={(e) => setFormProfitWithdraw({ ...formProfitWithdraw, catatan: e.target.value })} 
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                        />
                       </div>
 
                       <div className="flex gap-3 pt-2">
-                        <button type="button" onClick={() => setSelectedPemodalProfitWD(null)} className="flex-1 bg-slate-100 text-slate-700 text-xs font-bold py-3 rounded-xl">Batal</button>
-                        <button type="submit" disabled={loading} className="flex-1 bg-emerald-600 text-white text-xs font-bold py-3 rounded-xl shadow">Konfirmasi ➔</button>
+                        <button 
+                          type="button" 
+                          onClick={() => setSelectedPemodalProfitWD(null)} 
+                          className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-3 rounded-xl"
+                        >
+                          Batal
+                        </button>
+                        <button 
+                          type="submit" 
+                          disabled={loading} 
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
+                        >
+                          Konfirmasi Penarikan ➔
+                        </button>
                       </div>
                     </form>
                   );
                 })()}
+              </div>
+            </div>
+          )}
+
+          {/* MODAL FORM PENARIKAN MODAL */}
+          {selectedPemodalWithdraw && currentUser.role === 'Admin' && (
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+                <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm text-amber-400">💸 Penarikan Modal Investor</h3>
+                    <p className="text-xs text-slate-300 font-semibold">{selectedPemodalWithdraw.namaPemodal}</p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedPemodalWithdraw(null)}
+                    className="text-slate-400 hover:text-white p-2 text-xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveWithdrawal} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                  {(() => {
+                    const totalTambah = additionList
+                      .filter(a => a.pemodalId === selectedPemodalWithdraw.id)
+                      .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
+                    const totalWD = withdrawalList
+                      .filter(w => w.pemodalId === selectedPemodalWithdraw.id)
+                      .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+
+                    const totalDisetor = selectedPemodalWithdraw.jumlahModal + totalTambah;
+                    const sisaModal = totalDisetor - totalWD;
+
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Total Modal Disetor:</span>
+                          <span className="font-bold text-slate-800">{formatRupiah(totalDisetor)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Total Pernah Ditarik:</span>
+                          <span className="font-bold text-red-600">-{formatRupiah(totalWD)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs border-t border-amber-200 pt-1 mt-1">
+                          <span className="text-slate-700 font-bold">Sisa Modal Aktif:</span>
+                          <span className="font-black text-emerald-700">{formatRupiah(sisaModal)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penarikan</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={formWithdraw.tanggal} 
+                      onChange={(e) => setFormWithdraw({ ...formWithdraw, tanggal: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Modal Ditarik (Rp)</label>
+                    <input 
+                      type="number" 
+                      inputMode="numeric"
+                      required 
+                      placeholder="e.g. 10000000" 
+                      value={formWithdraw.jumlahTarik} 
+                      onChange={(e) => setFormWithdraw({ ...formWithdraw, jumlahTarik: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-red-600 bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Alasan Penarikan</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Penarikan sebagian modal" 
+                      value={formWithdraw.catatan} 
+                      onChange={(e) => setFormWithdraw({ ...formWithdraw, catatan: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setSelectedPemodalWithdraw(null)} 
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-3 rounded-xl"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={loading} 
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
+                    >
+                      Konfirmasi ➔
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL FORM TAMBAH MODAL */}
+          {selectedPemodalAdd && currentUser.role === 'Admin' && (
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+                <div className="bg-slate-900 text-white p-4 sm:p-5 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm text-emerald-400">➕ Penambahan Modal Investor</h3>
+                    <p className="text-xs text-slate-300 font-semibold">{selectedPemodalAdd.namaPemodal}</p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedPemodalAdd(null)}
+                    className="text-slate-400 hover:text-white p-2 text-xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveAddition} className="p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                  {(() => {
+                    const totalTambah = additionList
+                      .filter(a => a.pemodalId === selectedPemodalAdd.id)
+                      .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
+                    const totalWD = withdrawalList
+                      .filter(w => w.pemodalId === selectedPemodalAdd.id)
+                      .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+
+                    const totalDisetorSaatIni = selectedPemodalAdd.jumlahModal + totalTambah;
+
+                    return (
+                      <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Modal Awal Setor:</span>
+                          <span className="font-bold text-slate-800">{formatRupiah(selectedPemodalAdd.jumlahModal)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Total Pernah Ditambah:</span>
+                          <span className="font-bold text-blue-600">+{formatRupiah(totalTambah)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs border-t border-emerald-200 pt-1 mt-1">
+                          <span className="text-slate-700 font-bold">Total Disetor (Bruto):</span>
+                          <span className="font-black text-emerald-700">{formatRupiah(totalDisetorSaatIni)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Penambahan Modal</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={formAddModal.tanggal} 
+                      onChange={(e) => setFormAddModal({ ...formAddModal, tanggal: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah Modal Ditambah (Rp)</label>
+                    <input 
+                      type="number" 
+                      inputMode="numeric"
+                      required 
+                      placeholder="e.g. 20000000" 
+                      value={formAddModal.jumlahTambah} 
+                      onChange={(e) => setFormAddModal({ ...formAddModal, jumlahTambah: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-600 bg-white" 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Catatan / Keterangan Penambahan</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Tambahan modal usaha tahap 2" 
+                      value={formAddModal.catatan} 
+                      onChange={(e) => setFormAddModal({ ...formAddModal, catatan: e.target.value })} 
+                      className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" 
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setSelectedPemodalAdd(null)} 
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-3 rounded-xl"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={loading} 
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl shadow active:scale-95"
+                    >
+                      Konfirmasi Tambah ➔
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
@@ -1908,7 +2167,13 @@
                     {currentUser.role}
                   </span>
                 </div>
-                <button onClick={handleLogout} className="text-xs bg-red-600/20 text-red-300 border border-red-500/30 px-2.5 py-1.5 rounded-lg font-bold">🚪</button>
+                <button 
+                  onClick={handleLogout}
+                  className="text-xs bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/30 px-2.5 py-1.5 rounded-lg font-bold transition"
+                  title="Logout"
+                >
+                  🚪
+                </button>
               </div>
             </div>
 
@@ -1921,7 +2186,7 @@
                     activeTab === 'flow_info' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-amber-300'
                   }`}
                 >
-                  💡 Cara Kerja
+                  💡 Cara Kerja & Investasi
                 </button>
 
                 {!isClient && (
@@ -2002,7 +2267,7 @@
                       activeTab === 'categories' ? 'border-amber-500 text-amber-400 bg-slate-900/60' : 'border-transparent text-slate-400'
                     }`}
                   >
-                    ⚙️ Kategori
+                    ⚙️ Kategori ({categories.length})
                   </button>
                 )}
 
@@ -2030,110 +2295,108 @@
           </header>
 
           <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
-            {/* TAB EDUKASI FLOW BISNIS */}
+            {/* TAB EDUKASI FLOW BISNIS & DORONGAN INVESTASI */}
             {activeTab === 'flow_info' && (
               <div className="max-w-5xl mx-auto space-y-6">
-                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-500/30">
-                  <div className="space-y-3">
-                    <span className="bg-amber-500 text-slate-900 text-[10px] sm:text-xs font-extrabold px-3 py-1 rounded-full uppercase">
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-500/30 relative overflow-hidden">
+                  <div className="relative z-10 space-y-3">
+                    <span className="bg-amber-500 text-slate-900 text-[10px] sm:text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
                       💎 Peluang Investasi Komoditas Real
                     </span>
-                    <h2 className="text-xl sm:text-3xl font-black text-amber-400">
+                    <h2 className="text-xl sm:text-3xl font-black leading-tight text-amber-400">
                       Sistem Pengolahan & Pemurnian Perak Cahaya Gemilang
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-                      Bisnis pengolahan limbah industri dan bahan mentah menjadi perak murni berkualitas tinggi.
+                    <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                      Bergabunglah bersama kami dalam bisnis pengolahan limbah industri dan bahan mentah menjadi perak murni berkualitas tinggi dengan rasio efisiensi tinggi, pencatatan realtime, dan bagi hasil yang transparan.
+                    </p>
+                    <div className="pt-2 flex flex-wrap gap-3">
+                      <button
+                        onClick={() => setActiveTab('pemodal')}
+                        className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold px-5 py-3 rounded-xl text-xs shadow-lg transition active:scale-95"
+                      >
+                        🤝 Lihat Rincian Pemodal & Bagi Hasil
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold px-5 py-3 rounded-xl text-xs transition"
+                      >
+                        📊 Lihat Laporan Performa
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200 space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-slate-800 text-base sm:text-lg flex items-center gap-2">
+                      🔄 Alur Bisnis & Pemurnian Perak
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Proses pengolahan komoditas dari bahan mentah hingga menjadi laba bersih secara terstruktur.
                     </p>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 space-y-2 relative">
+                      <div className="w-8 h-8 bg-amber-500 text-slate-900 font-black rounded-xl flex items-center justify-center text-sm">
+                        1
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">📥 Pembelian Mentah</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Tim lapangan membeli bahan mentah (kontaktor, breaker, fuse, dll.) dari supplier/pabrik.
+                      </p>
+                    </div>
+
+                    <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-200/80 space-y-2 relative">
+                      <div className="w-8 h-8 bg-blue-600 text-white font-black rounded-xl flex items-center justify-center text-sm">
+                        2
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">🧪 Pengolahan & Olah</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Bahan kotor diproses dan dimurnikan menggunakan teknik refining kimiawi.
+                      </p>
+                    </div>
+
+                    <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-2 relative">
+                      <div className="w-8 h-8 bg-emerald-600 text-white font-black rounded-xl flex items-center justify-center text-sm">
+                        3
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">💰 Penjualan Hasil</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Perak murni dijual langsung ke toko/pembeli industri sesuai harga pasar.
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-100 p-4 rounded-2xl border border-slate-300 space-y-2 relative">
+                      <div className="w-8 h-8 bg-slate-900 text-amber-400 font-black rounded-xl flex items-center justify-center text-sm">
+                        4
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">🤝 Bagi Hasil Investor</h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        Laba bersih didistribusikan secara otomatis sesuai porsi modal aktif.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="w-10 h-10 bg-amber-100 text-amber-800 rounded-xl flex items-center justify-center font-bold text-lg mb-3">1</div>
-                    <h3 className="font-bold text-slate-800 text-sm mb-1">Pembelian Bahan Mentah</h3>
-                    <p className="text-xs text-slate-500">Membeli limbah kontaktor, relay, breaker, atau komponen berbahan perak dari berbagai supplier.</p>
-                  </div>
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="w-10 h-10 bg-blue-100 text-blue-800 rounded-xl flex items-center justify-center font-bold text-lg mb-3">2</div>
-                    <h3 className="font-bold text-slate-800 text-sm mb-1">Proses Pemurnian (Refining)</h3>
-                    <p className="text-xs text-slate-500">Melebur dan memisahkan kadar perak kotor menggunakan reaksi kimia pendukung hingga menjadi perak murni.</p>
-                  </div>
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="w-10 h-10 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center font-bold text-lg mb-3">3</div>
-                    <h3 className="font-bold text-slate-800 text-sm mb-1">Penjualan & Pembagian Hasil</h3>
-                    <p className="text-xs text-slate-500">Penjualan hasil perak murni ke toko/pembeli dengan keuntungan yang dibagi secara transparan.</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB INPUT 1: PEMBELIAN BARANG MENTAH */}
-            {activeTab === 'pengambilan' && !isClient && (
-              <div className="max-w-3xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-4 sm:p-6">
-                    <h2 className="text-base sm:text-lg font-bold">📥 1. Input Pembelian Barang Mentah</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Catat pengambilan barang dari supplier/lokasi.</p>
+                <div className="bg-emerald-600 text-white rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-xl">
+                  <div className="space-y-2">
+                    <span className="bg-emerald-900/60 text-emerald-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase">
+                      💬 Layanan Customer Service Active
+                    </span>
+                    <h3 className="font-black text-xl sm:text-2xl text-amber-300">Tertarik Menjadi Bagian Dari Investor Kami?</h3>
                   </div>
 
-                  <form onSubmit={handleSavePengambilan} className="p-4 sm:p-6 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Pembelian</label>
-                        <input type="date" required value={formAmbil.tanggal} onChange={(e) => setFormAmbil({ ...formAmbil, tanggal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Petugas Pembeli / PIC</label>
-                        <input type="text" required value={formAmbil.pengambilSelect} onChange={(e) => setFormAmbil({ ...formAmbil, pengambilSelect: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold bg-amber-50" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Tempat / PT / Supplier</label>
-                        <input type="text" required placeholder="e.g. PT Jaya Sentosa" value={formAmbil.tempatAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, tempatAmbil: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Lokasi / Kota</label>
-                        <input type="text" placeholder="e.g. Bekasi" value={formAmbil.lokasiAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, lokasiAmbil: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Kategori Barang</label>
-                      <select value={formAmbil.kategoriCode} onChange={(e) => setFormAmbil({ ...formAmbil, kategoriCode: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white font-bold text-slate-800">
-                        {categories.map((c) => (
-                          <option key={c.code} value={c.code}>[{c.code}] {c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Berat Kotor (Gram)</label>
-                        <input type="number" step="0.01" inputMode="decimal" required placeholder="e.g. 1000" value={formAmbil.jumlahKotor} onChange={(e) => setFormAmbil({ ...formAmbil, jumlahKotor: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Harga Beli / Gram (Rp)</label>
-                        <input type="number" inputMode="numeric" required placeholder="e.g. 12000" value={formAmbil.hargaBeliSatuan} onChange={(e) => setFormAmbil({ ...formAmbil, hargaBeliSatuan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Biaya Transport (Rp)</label>
-                        <input type="number" inputMode="numeric" placeholder="e.g. 50000" value={formAmbil.biayaTransport} onChange={(e) => setFormAmbil({ ...formAmbil, biayaTransport: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white text-red-600 font-bold" />
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-100 p-3 rounded-xl flex justify-between items-center text-xs">
-                      <span className="text-slate-600 font-semibold">Total Modal Beli Barang:</span>
-                      <span className="font-black text-slate-900 text-sm">
-                        {formatRupiah((parseFloat(formAmbil.jumlahKotor) || 0) * (parseFloat(formAmbil.hargaBeliSatuan) || 0))}
-                      </span>
-                    </div>
-
-                    <button type="submit" disabled={loading} className="w-full bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold py-3.5 rounded-xl shadow transition active:scale-95">
-                      Simpan Pembelian Barang Mentah ➔
-                    </button>
-                  </form>
+                  <div className="pt-2 flex justify-center">
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold px-6 py-3.5 rounded-2xl text-xs sm:text-sm shadow-xl transition active:scale-95 flex items-center gap-2"
+                    >
+                      <span>💬</span> Hubungi CS via WhatsApp (+{csInfo.noWa}) ➔
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
@@ -2222,7 +2485,7 @@
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Harga (Rp)</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Harga Total (Rp)</label>
                         <input
                           type="number"
                           inputMode="numeric"
@@ -2304,180 +2567,16 @@
               </div>
             )}
 
-            {/* TAB INPUT 2: PEMURNIAN / PENGOLAHAN */}
-            {activeTab === 'pengolahan' && !isClient && (
-              <div className="max-w-3xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-4 sm:p-6">
-                    <h2 className="text-base sm:text-lg font-bold">⚗️ 2. Pemurnian & Pengolahan Perak</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Pilih stok barang mentah yang akan dilebur & murnikan.</p>
-                  </div>
-
-                  <form onSubmit={handleSavePengolahan} className="p-4 sm:p-6 space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Pilih Stok Menunggu Pemurnian ({pendingOlahList.length})</label>
-                      {pendingOlahList.length === 0 ? (
-                        <p className="text-xs text-slate-400 py-4 text-center border border-dashed rounded-xl">Tidak ada stok mentah yang perlu diolah.</p>
-                      ) : (
-                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                          {pendingOlahList.map((t) => (
-                            <label key={t.id} className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition ${formOlah.selectedTrxIds.includes(t.id) ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                              <div className="flex items-center gap-2">
-                                <input type="checkbox" checked={formOlah.selectedTrxIds.includes(t.id)} onChange={() => handleToggleSelectOlah(t.id)} className="w-4 h-4 text-amber-500 rounded" />
-                                <div>
-                                  <p className="font-bold text-slate-800">{t.codeId} - {t.kategoriName}</p>
-                                  <p className="text-[10px] text-slate-500">{t.tempatAmbil} | PIC: {t.pengambil}</p>
-                                </div>
-                              </div>
-                              <span className="font-bold text-slate-900">{t.jumlahKotor}g</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {formOlah.selectedTrxIds.length > 0 && (
-                      <div className="space-y-3 border-t border-slate-200 pt-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Olah</label>
-                            <input type="date" required value={formOlah.tanggalOlah} onChange={(e) => setFormOlah({ ...formOlah, tanggalOlah: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Petugas Pelebur / Pengolah</label>
-                            <input type="text" required value={formOlah.pengolahSelect} onChange={(e) => setFormOlah({ ...formOlah, pengolahSelect: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold bg-amber-50" />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Hasil Perak Murni (Gram)</label>
-                            <input type="number" step="0.01" inputMode="decimal" required placeholder="e.g. 250" value={formOlah.jumlahMurni} onChange={(e) => setFormOlah({ ...formOlah, jumlahMurni: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-blue-600 bg-white" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Biaya Pemurnian / Lebur (Rp)</label>
-                            <input type="number" inputMode="numeric" placeholder="e.g. 150000" value={formOlah.biayaOlah} onChange={(e) => setFormOlah({ ...formOlah, biayaOlah: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-red-600 bg-white" />
-                          </div>
-                        </div>
-
-                        <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow transition active:scale-95">
-                          Simpan Hasil Pemurnian Perak ➔
-                        </button>
-                      </div>
-                    )}
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {/* TAB INPUT 3: PENJUALAN */}
-            {activeTab === 'penjualan' && !isClient && (
-              <div className="max-w-3xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-4 sm:p-6">
-                    <h2 className="text-base sm:text-lg font-bold">💰 3. Penjualan Perak Murni</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Catat hasil penjualan perak murni ke toko atau pembeli.</p>
-                  </div>
-
-                  <form onSubmit={handleSavePenjualan} className="p-4 sm:p-6 space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Pilih Stok Perak Murni Siap Jual ({pendingJualList.length})</label>
-                      {pendingJualList.length === 0 ? (
-                        <p className="text-xs text-slate-400 py-4 text-center border border-dashed rounded-xl">Tidak ada stok perak murni yang siap dijual.</p>
-                      ) : (
-                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                          {pendingJualList.map((t) => (
-                            <label key={t.id} className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition ${formJual.selectedTrxIds.includes(t.id) ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                              <div className="flex items-center gap-2">
-                                <input type="checkbox" checked={formJual.selectedTrxIds.includes(t.id)} onChange={() => handleToggleSelectJual(t.id)} className="w-4 h-4 text-amber-500 rounded" />
-                                <div>
-                                  <p className="font-bold text-slate-800">{t.codeId} - {t.kategoriName}</p>
-                                  <p className="text-[10px] text-slate-500">Murni: {t.jumlahMurni}g | Olah: {t.pengolah}</p>
-                                </div>
-                              </div>
-                              <span className="font-bold text-blue-600">{t.jumlahMurni}g</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {formJual.selectedTrxIds.length > 0 && (
-                      <div className="space-y-3 border-t border-slate-200 pt-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Penjualan</label>
-                            <input type="date" required value={formJual.tanggalJual} onChange={(e) => setFormJual({ ...formJual, tanggalJual: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Harga Jual / Gram (Rp)</label>
-                            <input type="number" inputMode="numeric" required placeholder="e.g. 15000" value={formJual.hargaJualSatuan} onChange={(e) => setFormJual({ ...formJual, hargaJualSatuan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-600 bg-white" />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1">Biaya Penjualan / Ekspedisi (Rp)</label>
-                          <input type="number" inputMode="numeric" placeholder="e.g. 25000" value={formJual.biayaPenjualan} onChange={(e) => setFormJual({ ...formJual, biayaPenjualan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white font-bold text-red-600" />
-                        </div>
-
-                        <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow transition active:scale-95">
-                          Simpan Pencatatan Penjualan ➔
-                        </button>
-                      </div>
-                    )}
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {/* TAB USERS & CS */}
+            {/* TAB KONTROL USER & INFORMASI CS (ADMIN ONLY) */}
             {activeTab === 'users' && currentUser.role === 'Admin' && (
               <div className="max-w-4xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="bg-amber-600 text-white p-4 sm:p-6 flex justify-between items-center">
-                    <div>
-                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-                        👥 Pengelolaan Hak Akses & User ({userList.length})
-                      </h2>
-                    </div>
-                  </div>
-
-                  <div className="p-4 sm:p-6 space-y-3">
-                    {userList.map((usr) => (
-                      <div key={usr.uid} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
-                        <div>
-                          <p className="font-bold text-slate-800 text-sm">{usr.nama || 'Tanpa Nama'}</p>
-                          <p className="text-[10px] text-slate-500">{usr.email}</p>
-                        </div>
-
-                        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                          <select
-                            value={usr.role || 'Client'}
-                            onChange={(e) => handleChangeUserRole(usr.uid, e.target.value)}
-                            disabled={usr.uid === currentUser.uid}
-                            className="px-2 py-1 border rounded text-xs bg-white font-bold"
-                          >
-                            <option value="Admin">Admin</option>
-                            <option value="Petugas">Petugas</option>
-                            <option value="Client">Client</option>
-                          </select>
-
-                          <button onClick={() => handleAdminResetUserPassword(usr.email)} className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-[10px] font-bold">🔑 Reset Pass</button>
-                          {usr.uid !== currentUser.uid && (
-                            <button onClick={() => handleDeleteUser(usr)} className="bg-red-100 text-red-600 px-2 py-1 rounded text-[10px] font-bold">🗑️ Hapus</button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="bg-emerald-800 text-white p-4 sm:p-6 flex justify-between items-center">
                     <div>
                       <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
                         💬 Pengaturan Kontak Customer Service
                       </h2>
+                      <p className="text-xs text-emerald-200 mt-0.5">Atur nomor WhatsApp CS yang tampil di menu Cara Kerja & Investasi.</p>
                     </div>
                   </div>
 
@@ -2488,6 +2587,7 @@
                         <input
                           type="text"
                           required
+                          placeholder="e.g. CS Utama Cahaya Gemilang"
                           value={formCs.namaCs}
                           onChange={(e) => setFormCs({ ...formCs, namaCs: e.target.value })}
                           className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white"
@@ -2495,80 +2595,208 @@
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nomor WhatsApp CS</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nomor WhatsApp CS (Awali 62/08)</label>
                         <input
                           type="text"
                           required
+                          placeholder="e.g. 6281234567890"
                           value={formCs.noWa}
                           onChange={(e) => setFormCs({ ...formCs, noWa: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-xl text-sm font-mono bg-white font-bold"
+                          className="w-full px-3 py-2.5 border rounded-xl text-sm font-mono bg-white font-bold text-slate-800"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Pesan Otomatis WhatsApp</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Pesan Otomatis WhatsApp (Default Message)</label>
                       <input
                         type="text"
                         required
+                        placeholder="Pesan pertama saat calon investor klik WhatsApp..."
                         value={formCs.pesanDefault}
                         onChange={(e) => setFormCs({ ...formCs, pesanDefault: e.target.value })}
                         className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white"
                       />
                     </div>
 
-                    <button type="submit" disabled={loading} className="bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-xl text-xs">
-                      Simpan Kontak CS ➔
-                    </button>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {/* TAB KATEGORI */}
-            {activeTab === 'categories' && !isClient && (
-              <div className="max-w-3xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-4 sm:p-6">
-                    <h2 className="text-base sm:text-lg font-bold">⚙️ Pengaturan Kategori Barang</h2>
-                  </div>
-
-                  <form onSubmit={handleAddCategory} className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Kode Kategori</label>
-                        <input type="text" required placeholder="e.g. J" value={newCatCode} onChange={(e) => setNewCatCode(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm uppercase bg-white" />
+                    <div className="flex justify-between items-center pt-2">
+                      <div className="text-[10px] text-slate-500">
+                        Status Saat Ini: <strong className="text-emerald-700">+{csInfo.noWa}</strong> ({csInfo.namaCs})
                       </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Kategori</label>
-                        <input type="text" required placeholder="e.g. Komponen Perak A" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm bg-white" />
-                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow transition active:scale-95"
+                      >
+                        Simpan Kontak CS ➔
+                      </button>
                     </div>
-                    <button type="submit" disabled={loading} className="bg-amber-500 text-slate-900 font-bold px-4 py-2 rounded-xl text-xs">
-                      + Tambah Kategori Baru
-                    </button>
                   </form>
+                </div>
 
-                  <div className="p-4 sm:p-6 space-y-2">
-                    {categories.map((c) => (
-                      <div key={c.id || c.code} className="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                        <div>
-                          <span className="font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded mr-2">[{c.code}]</span>
-                          <span className="font-semibold text-slate-800">{c.name}</span>
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex justify-between items-center">
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                        👥 Kontrol Pengguna
+                        <span className="text-[9px] bg-amber-500 text-slate-900 font-extrabold px-1.5 py-0.5 rounded">ADMIN</span>
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Kelola wewenang dan akun pengguna sistem (Admin, Petugas, Client).</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 sm:p-6 space-y-3">
+                    {userList.map((u) => {
+                      const isSelf = u.uid === currentUser.uid;
+                      return (
+                        <div key={u.uid} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                          <div>
+                            <p className="font-bold text-xs sm:text-sm text-slate-800">
+                              {u.nama || 'Tanpa Nama'}
+                              {isSelf && <span className="ml-2 text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">(Anda)</span>}
+                            </p>
+                            <p className="text-xs text-slate-500 font-mono">{u.email}</p>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-0 pt-2 sm:pt-0">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
+                              u.role === 'Admin' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                              u.role === 'Petugas' ? 'bg-blue-100 text-blue-800 border border-blue-300' : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {u.role || 'Client'}
+                            </span>
+
+                            {!isSelf ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleChangeUserRole(u.uid, 'Admin')}
+                                  disabled={u.role === 'Admin'}
+                                  className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                    u.role === 'Admin' ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-amber-500 text-slate-900'
+                                  }`}
+                                >
+                                  Admin
+                                </button>
+                                <button
+                                  onClick={() => handleChangeUserRole(u.uid, 'Petugas')}
+                                  disabled={u.role === 'Petugas'}
+                                  className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                    u.role === 'Petugas' ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-blue-600 text-white'
+                                  }`}
+                                >
+                                  Petugas
+                                </button>
+                                <button
+                                  onClick={() => handleChangeUserRole(u.uid, 'Client')}
+                                  disabled={u.role === 'Client' || !u.role}
+                                  className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                    (u.role === 'Client' || !u.role) ? 'opacity-40 bg-slate-200 text-slate-500' : 'bg-slate-800 text-white'
+                                  }`}
+                                >
+                                  Client
+                                </button>
+                                <button
+                                  onClick={() => handleAdminResetUserPassword(u.email)}
+                                  className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-2 py-1 rounded text-[10px] font-bold transition"
+                                  title="Kirim Reset Password ke Email User"
+                                >
+                                  🔑 Reset
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(u)}
+                                  className="bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 px-2 py-1 rounded text-[10px] font-bold transition"
+                                  title="Hapus Akun User"
+                                >
+                                  🗑️ Hapus
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Akun Anda</span>
+                            )}
+                          </div>
                         </div>
-                        {c.id && (
-                          <button onClick={() => handleDeleteCategory(c.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️ Hapus</button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* TAB NERACA KAS */}
+            {/* TAB NERACA KAS & SALDO */}
             {activeTab === 'neraca' && (
               <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <div className="flex flex-col gap-3 mb-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm">💳 Filter Arus Kas & Saldo</h3>
+                      <p className="text-xs text-slate-500">Pantau mutasi masuk, keluar, & sisa saldo.</p>
+                    </div>
+
+                    <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-xl text-center">
+                      <button
+                        onClick={() => setNeracaFilterType('ALL')}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                          neracaFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Semua
+                      </button>
+                      <button
+                        onClick={() => setNeracaFilterType('MONTH')}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                          neracaFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Bulanan
+                      </button>
+                      <button
+                        onClick={() => setNeracaFilterType('RANGE')}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                          neracaFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Rentang
+                      </button>
+                    </div>
+                  </div>
+
+                  {neracaFilterType === 'MONTH' && (
+                    <div className="flex items-center gap-2 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60">
+                      <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Bulan:</label>
+                      <input
+                        type="month"
+                        value={neracaFilterMonth}
+                        onChange={(e) => setNeracaFilterMonth(e.target.value)}
+                        className="w-full px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                  )}
+
+                  {neracaFilterType === 'RANGE' && (
+                    <div className="grid grid-cols-2 gap-2 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600">Dari:</label>
+                        <input
+                          type="date"
+                          value={neracaStartDate}
+                          onChange={(e) => setNeracaStartDate(e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600">Sampai:</label>
+                        <input
+                          type="date"
+                          value={neracaEndDate}
+                          onChange={(e) => setNeracaEndDate(e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Modal Disetor</span>
@@ -2706,6 +2934,77 @@
             {/* TAB PEMODAL & BAGI HASIL */}
             {activeTab === 'pemodal' && (
               <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <div className="flex flex-col gap-3 mb-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm">📅 Filter Periode Laba Pemodal</h3>
+                      <p className="text-xs text-slate-500">Hitung laba berdasarkan tanggal penjualan.</p>
+                    </div>
+
+                    <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-xl text-center">
+                      <button
+                        onClick={() => setPemodalFilterType('ALL')}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                          pemodalFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Semua
+                      </button>
+                      <button
+                        onClick={() => setPemodalFilterType('MONTH')}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                          pemodalFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Bulanan
+                      </button>
+                      <button
+                        onClick={() => setPemodalFilterType('RANGE')}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                          pemodalFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Rentang
+                      </button>
+                    </div>
+                  </div>
+
+                  {pemodalFilterType === 'MONTH' && (
+                    <div className="flex items-center gap-2 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60">
+                      <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Bulan:</label>
+                      <input
+                        type="month"
+                        value={pemodalFilterMonth}
+                        onChange={(e) => setPemodalFilterMonth(e.target.value)}
+                        className="w-full px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                  )}
+
+                  {pemodalFilterType === 'RANGE' && (
+                    <div className="grid grid-cols-2 gap-2 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/60">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600">Dari Jual:</label>
+                        <input
+                          type="date"
+                          value={pemodalStartDate}
+                          onChange={(e) => setPemodalStartDate(e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600">Sampai Jual:</label>
+                        <input
+                          type="date"
+                          value={pemodalEndDate}
+                          onChange={(e) => setPemodalEndDate(e.target.value)}
+                          className="w-full px-2 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Modal Aktif (Net)</span>
@@ -2725,64 +3024,151 @@
                   </div>
                 </div>
 
-                {!isClient && (
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6">
-                    <h3 className="font-bold text-slate-800 text-sm mb-3">🤝 Tambah Pemodal Baru</h3>
-                    <form onSubmit={handleSavePemodal} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input type="text" required placeholder="Nama Investor" value={formPemodal.namaPemodal} onChange={(e) => setFormPemodal({ ...formPemodal, namaPemodal: e.target.value })} className="px-3 py-2 border rounded-xl text-sm" />
-                      <input type="number" required placeholder="Jumlah Modal (Rp)" value={formPemodal.jumlahModal} onChange={(e) => setFormPemodal({ ...formPemodal, jumlahModal: e.target.value })} className="px-3 py-2 border rounded-xl text-sm font-bold" />
-                      <input type="date" required value={formPemodal.tanggalBergabung} onChange={(e) => setFormPemodal({ ...formPemodal, tanggalBergabung: e.target.value })} className="px-3 py-2 border rounded-xl text-sm" />
-                      <input type="text" placeholder="Kontak / WhatsApp" value={formPemodal.kontak} onChange={(e) => setFormPemodal({ ...formPemodal, kontak: e.target.value })} className="px-3 py-2 border rounded-xl text-sm" />
-                      <button type="submit" disabled={loading} className="sm:col-span-2 bg-slate-900 text-amber-400 font-bold py-2.5 rounded-xl text-xs">Simpan Pemodal Baru ➔</button>
+                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold">🤝 Informasi Investor & Bagi Hasil</h2>
+                      <p className="text-xs text-slate-400">Rincian porsi penyertaan modal & estimasi hak dividen.</p>
+                    </div>
+
+                    {!isClient && (
+                      <div className="bg-slate-800 p-2 rounded-xl border border-slate-700 flex items-center gap-2 w-full sm:w-auto justify-between">
+                        <label className="text-xs font-bold text-slate-300">Nisbah Pengelola (%):</label>
+                        <input 
+                          type="number" 
+                          inputMode="numeric"
+                          min="0" 
+                          max="100" 
+                          value={nisbahPengelolaPct} 
+                          onChange={(e) => handleUpdateNisbah(e.target.value)} 
+                          className="w-16 px-2 py-1 text-xs font-bold text-center bg-slate-900 border border-slate-600 rounded-lg text-amber-400" 
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {!isClient && (
+                    <form onSubmit={handleSavePemodal} className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 space-y-3">
+                      <h3 className="text-xs font-bold text-slate-700 uppercase">Tambah Pemodal Baru</h3>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input type="text" required placeholder="Nama Pemodal / Investor" value={formPemodal.namaPemodal} onChange={(e) => setFormPemodal({ ...formPemodal, namaPemodal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                        <input type="number" inputMode="numeric" required placeholder="Jumlah Modal Awal (Rp)" value={formPemodal.jumlahModal} onChange={(e) => setFormPemodal({ ...formPemodal, jumlahModal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700 bg-white" />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input type="date" required value={formPemodal.tanggalBergabung} onChange={(e) => setFormPemodal({ ...formPemodal, tanggalBergabung: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                        <input type="text" placeholder="Kontak / No. HP" value={formPemodal.kontak} onChange={(e) => setFormPemodal({ ...formPemodal, kontak: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+                      </div>
+
+                      <input type="text" placeholder="Catatan / Keterangan (Opsional)" value={formPemodal.catatan} onChange={(e) => setFormPemodal({ ...formPemodal, catatan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white" />
+
+                      <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow active:scale-95">
+                        Simpan Pemodal Baru ➔
+                      </button>
                     </form>
-                  </div>
-                )}
+                  )}
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="p-4 border-b border-slate-200">
-                    <h3 className="font-bold text-slate-800 text-xs sm:text-sm">👥 Daftar Investor & Porsi Bagi Hasil</h3>
-                  </div>
-                  <div className="p-3 space-y-3">
-                    {pemodalList.map((p) => {
-                      const totalTambahan = additionList.filter(a => a.pemodalId === p.id).reduce((s, a) => s + (a.jumlahTambah || 0), 0);
-                      const totalDitarik = withdrawalList.filter(w => w.pemodalId === p.id).reduce((s, w) => s + (w.jumlahTarik || 0), 0);
-                      const modalAktif = p.jumlahModal + totalTambahan - totalDitarik;
-                      const porsi = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
-                      const hakLaba = (totalLabaUntukPemodal * porsi) / 100;
+                  <div className="p-3 sm:p-6 space-y-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase">Rincian Modal & Hak Laba Investor</h3>
 
-                      return (
-                        <div key={p.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-bold text-slate-900 text-sm">{p.namaPemodal}</p>
-                              <p className="text-[10px] text-slate-500">Bergabung: {p.tanggalBergabung} | Kontak: {p.kontak}</p>
+                    {pemodalList.length === 0 ? (
+                      <p className="text-center py-6 text-xs text-slate-400">Belum ada pemodal tersimpan.</p>
+                    ) : (
+                      pemodalList.map((p) => {
+                        const totalTambahan = additionList
+                          .filter(a => a.pemodalId === p.id)
+                          .reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+
+                        const totalDitarik = withdrawalList
+                          .filter(w => w.pemodalId === p.id)
+                          .reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+                        
+                        const modalDisetorTotal = p.jumlahModal + totalTambahan;
+                        const modalAktif = modalDisetorTotal - totalDitarik;
+                        const porsiPct = totalModalAktifNet > 0 ? ((modalAktif / totalModalAktifNet) * 100) : 0;
+                        const hakLabaNominal = (totalLabaUntukPemodal * porsiPct) / 100;
+
+                        const totalLabaDitarik = profitWithdrawalList
+                          .filter(pw => pw.pemodalId === p.id)
+                          .reduce((s, pw) => s + (pw.jumlahTarik || 0), 0);
+
+                        const sisaLabaBelumDitarik = hakLabaNominal - totalLabaDitarik;
+
+                        return (
+                          <div key={p.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-bold text-sm text-slate-800">{p.namaPemodal}</p>
+                                <p className="text-[10px] text-slate-400">📞 {p.kontak}</p>
+                              </div>
+                              <span className="bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full text-[10px]">
+                                Porsi: {porsiPct.toFixed(2)}%
+                              </span>
                             </div>
-                            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-extrabold text-[10px]">
-                              Porsi: {porsi.toFixed(2)}%
-                            </span>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 font-mono">
+                              <div>
+                                <span className="text-[9px] text-slate-400 block font-sans">Sisa Modal Aktif:</span>
+                                <span className="font-black text-slate-900">{formatRupiah(modalAktif)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-400 block font-sans">Hak Laba Proporsional:</span>
+                                <span className="font-black text-emerald-600">+{formatRupiah(hakLabaNominal)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-400 block font-sans">Laba Sudah Ditarik:</span>
+                                <span className="font-bold text-red-600">-{formatRupiah(totalLabaDitarik)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-400 block font-sans">Sisa Laba Belum Ditarik:</span>
+                                <span className="font-black text-emerald-800">{formatRupiah(sisaLabaBelumDitarik)}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center pt-1">
+                              <div>
+                                <span className="text-[9px] text-slate-400 block">Total Ekuitas (Modal + Laba Belum Ditarik):</span>
+                                <span className="font-black text-sm text-slate-900 font-mono">{formatRupiah(modalAktif + sisaLabaBelumDitarik)}</span>
+                              </div>
+
+                              <div>
+                                {currentUser.role === 'Admin' ? (
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <button 
+                                      onClick={() => setSelectedPemodalProfitWD(p)} 
+                                      className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                                    >
+                                      💰 Tarik Laba
+                                    </button>
+                                    <button 
+                                      onClick={() => setSelectedPemodalAdd(p)} 
+                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-1.5 rounded-lg text-[10px] font-bold"
+                                    >
+                                      ➕ Modal
+                                    </button>
+                                    <button 
+                                      onClick={() => setSelectedPemodalWithdraw(p)} 
+                                      className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-2 py-1.5 rounded-lg text-[10px] font-bold"
+                                    >
+                                      💸 Tarik Modal
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeletePemodal(p.id)} 
+                                      className="p-1 text-red-500 hover:text-red-700 font-bold"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">Khusus Admin</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-
-                          <div className="grid grid-cols-2 gap-2 bg-white p-2.5 rounded-lg border text-[11px]">
-                            <div>
-                              <span className="text-slate-400 block text-[9px]">Modal Aktif:</span>
-                              <strong className="text-slate-800">{formatRupiah(modalAktif)}</strong>
-                            </div>
-                            <div>
-                              <span className="text-slate-400 block text-[9px]">Hak Laba Periode Ini:</span>
-                              <strong className="text-emerald-600">+{formatRupiah(hakLaba)}</strong>
-                            </div>
-                          </div>
-
-                          {currentUser.role === 'Admin' && (
-                            <div className="flex gap-2 pt-1">
-                              <button onClick={() => setSelectedPemodalProfitWD(p)} className="bg-emerald-600 text-white px-2.5 py-1 rounded text-[10px] font-bold">💰 Tarik Laba</button>
-                              <button onClick={() => setSelectedPemodalWithdraw(p)} className="bg-red-600 text-white px-2.5 py-1 rounded text-[10px] font-bold">💸 Tarik Modal</button>
-                              <button onClick={() => handleDeletePemodal(p.id)} className="text-red-500 text-[10px] font-bold ml-auto">🗑️ Hapus</button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>
@@ -2792,39 +3178,401 @@
             {activeTab === 'recap_pdf' && (
               <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
                 <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex justify-between items-center">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <h2 className="text-base sm:text-lg font-bold">📄 Recap List & Cetak Laporan PDF</h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Ekspor rekapitulasi data transaksi ke format PDF resmi.</p>
+                      <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                        📄 Recap List & Cetak Laporan PDF
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Unduh rekapitulasi pembelian, pengolahan, & penjualan dalam format PDF.</p>
                     </div>
-                    <button onClick={handleGeneratePDF} className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow">
-                      📥 Download PDF
+
+                    <button
+                      onClick={handleGeneratePDF}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-xs w-full sm:w-auto justify-center active:scale-95"
+                    >
+                      📥 Download PDF Sekarang
                     </button>
                   </div>
 
-                  <div className="p-4 sm:p-6 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Judul Laporan PDF</label>
-                        <input type="text" value={recapPdfTitle} onChange={(e) => setRecapPdfTitle(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Catatan Tambahan PDF</label>
-                        <input type="text" placeholder="e.g. Laporan Rekapitulasi Akhir Bulan" value={recapPdfNotes} onChange={(e) => setRecapPdfNotes(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm" />
-                      </div>
+                  <div className="p-4 sm:p-6 space-y-4 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase">1. Pengaturan Filter Periode Laporan</h3>
+
+                    <div className="grid grid-cols-3 bg-slate-200 p-1 rounded-xl text-center">
+                      <button
+                        onClick={() => setRecapFilterType('ALL')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Semua Waktu
+                      </button>
+                      <button
+                        onClick={() => setRecapFilterType('MONTH')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Bulanan
+                      </button>
+                      <button
+                        onClick={() => setRecapFilterType('RANGE')}
+                        className={`py-2 text-xs font-bold rounded-lg transition ${
+                          recapFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Rentang Tanggal
+                      </button>
                     </div>
+
+                    {recapFilterType === 'MONTH' && (
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Bulan:</label>
+                        <input
+                          type="month"
+                          value={recapFilterMonth}
+                          onChange={(e) => setRecapFilterMonth(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {recapFilterType === 'RANGE' && (
+                      <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Dari Tanggal:</label>
+                          <input
+                            type="date"
+                            value={recapStartDate}
+                            onChange={(e) => setRecapStartDate(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Sampai Tanggal:</label>
+                          <input
+                            type="date"
+                            value={recapEndDate}
+                            onChange={(e) => setRecapEndDate(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* TAB MASTER KATEGORI */}
+            {activeTab === 'categories' && !isClient && (
+              <div className="max-w-4xl mx-auto space-y-4">
+                <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6">
+                    <h2 className="text-base sm:text-lg font-bold">⚙️ Master Kategori Barang</h2>
+                  </div>
+                  
+                  <form onSubmit={handleAddCategory} className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                      <input type="text" required placeholder="Kode (A-Z)" value={newCatCode} onChange={(e) => setNewCatCode(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm uppercase font-bold" />
+                      <input type="text" required placeholder="Nama Kategori" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm" />
+                      <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-2.5 rounded-xl shadow">
+                        + Tambah Kategori
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {categories.map((cat) => (
+                      <div key={cat.id || cat.code} className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center shadow-sm">
+                        <div>
+                          <span className="inline-block bg-amber-100 text-amber-800 font-black text-xs px-2 py-0.5 rounded mr-2">[{cat.code}]</span>
+                          <span className="text-xs font-bold text-slate-800">{cat.name}</span>
+                        </div>
+                        {cat.id && currentUser.role === 'Admin' && (
+                          <button onClick={() => handleDeleteCategory(cat.id)} className="text-red-400 p-1">🗑️</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 1: PEMBELIAN */}
+            {activeTab === 'pengambilan' && !isClient && (
+              <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-4 sm:p-6">
+                  <h2 className="text-base sm:text-lg font-bold">📥 Input Pembelian Barang Mentah</h2>
+                </div>
+                <form onSubmit={handleSavePengambilan} className="p-4 sm:p-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal</label>
+                      <input type="date" required value={formAmbil.tanggal} onChange={(e) => setFormAmbil({ ...formAmbil, tanggal: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">PIC Pengambil</label>
+                      <input type="text" required value={formAmbil.pengambilSelect} onChange={(e) => setFormAmbil({ ...formAmbil, pengambilSelect: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-amber-700 bg-amber-50/50" />
+                    </div>
+                  </div>
+
+                  <div className="p-3 sm:p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 sm:space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase">📍 Sumber & Lokasi</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <input type="text" required placeholder="Lokasi (e.g. PT Surya)" value={formAmbil.tempatAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, tempatAmbil: e.target.value })} className="w-full px-3 py-2 border rounded-xl text-sm bg-white" />
+                      <input type="text" required placeholder="Daerah (e.g. Cikarang)" value={formAmbil.lokasiAmbil} onChange={(e) => setFormAmbil({ ...formAmbil, lokasiAmbil: e.target.value })} className="w-full px-3 py-2 border rounded-xl text-sm bg-white" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Kategori Barang</label>
+                    <select value={formAmbil.kategoriCode} onChange={(e) => setFormAmbil({ ...formAmbil, kategoriCode: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white font-bold text-slate-700">
+                      {categories.map((cat) => (
+                        <option key={cat.code} value={cat.code}>[{cat.code}] {cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah (Gram)</label>
+                      <input type="number" step="0.01" inputMode="decimal" required value={formAmbil.jumlahKotor} onChange={(e) => setFormAmbil({ ...formAmbil, jumlahKotor: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Beli /g (Rp)</label>
+                      <input type="number" inputMode="numeric" required value={formAmbil.hargaBeliSatuan} onChange={(e) => setFormAmbil({ ...formAmbil, hargaBeliSatuan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Transport (Rp)</label>
+                      <input type="number" inputMode="numeric" placeholder="e.g. 50000" value={formAmbil.biayaTransport} onChange={(e) => setFormAmbil({ ...formAmbil, biayaTransport: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3.5 rounded-xl shadow active:scale-95">
+                    Simpan Pembelian ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 2: PENGOLAHAN */}
+            {activeTab === 'pengolahan' && !isClient && (
+              <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-4 sm:p-6">
+                  <h2 className="text-base sm:text-lg font-bold">🧪 Input Pengolahan & Pemurnian</h2>
+                </div>
+                <form onSubmit={handleSavePengolahan} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                      Pilih Antrean ({formOlah.selectedTrxIds.length} Dipilih)
+                    </label>
+                    {pendingOlahList.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500 text-center">
+                        Tidak ada antrean barang mentah.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                        {pendingOlahList.map((t) => {
+                          const isChecked = formOlah.selectedTrxIds.includes(t.id);
+                          return (
+                            <label key={t.id} className={`flex items-center justify-between p-3 cursor-pointer transition ${isChecked ? 'bg-amber-50' : ''}`}>
+                              <div className="flex items-center gap-3">
+                                <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectOlah(t.id)} className="w-5 h-5 text-amber-500 rounded" />
+                                <div>
+                                  <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
+                                  <p className="text-[10px] text-slate-500">📍 {t.tempatAmbil}</p>
+                                </div>
+                              </div>
+                              <span className="font-mono font-bold text-xs text-slate-700">{t.jumlahKotor}g</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Olah</label>
+                      <input type="date" required value={formOlah.tanggalOlah} onChange={(e) => setFormOlah({ ...formOlah, tanggalOlah: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">PIC Pengolah</label>
+                      <input type="text" required value={formOlah.pengolahSelect} onChange={(e) => setFormOlah({ ...formOlah, pengolahSelect: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-blue-700 bg-blue-50/50" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Hasil Murni (Gram)</label>
+                      <input type="number" step="0.01" inputMode="decimal" required value={formOlah.jumlahMurni} onChange={(e) => setFormOlah({ ...formOlah, jumlahMurni: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-blue-700" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Olah (Rp)</label>
+                      <input type="number" inputMode="numeric" placeholder="e.g. 100000" value={formOlah.biayaOlah} onChange={(e) => setFormOlah({ ...formOlah, biayaOlah: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow active:scale-95">
+                    Simpan Pemurnian ➔
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 3: PENJUALAN */}
+            {activeTab === 'penjualan' && !isClient && (
+              <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-4 sm:p-6">
+                  <h2 className="text-base sm:text-lg font-bold">💰 Input Penjualan Perak Murni</h2>
+                </div>
+                <form onSubmit={handleSavePenjualan} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                      Pilih Perak Siap Jual ({formJual.selectedTrxIds.length} Dipilih)
+                    </label>
+                    {pendingJualList.length === 0 ? (
+                      <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500 text-center">
+                        Tidak ada barang siap dijual.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                        {pendingJualList.map((t) => {
+                          const isChecked = formJual.selectedTrxIds.includes(t.id);
+                          return (
+                            <label key={t.id} className={`flex items-center justify-between p-3 cursor-pointer transition ${isChecked ? 'bg-emerald-50' : ''}`}>
+                              <div className="flex items-center gap-3">
+                                <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectJual(t.id)} className="w-5 h-5 text-emerald-600 rounded" />
+                                <div>
+                                  <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
+                                  <p className="text-[10px] text-slate-500">Olah: {t.pengolah}</p>
+                                </div>
+                              </div>
+                              <span className="font-mono font-bold text-xs text-blue-600">{t.jumlahMurni}g</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Jual</label>
+                      <input type="date" required value={formJual.tanggalJual} onChange={(e) => setFormJual({ ...formJual, tanggalJual: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Jual / Gram (Rp)</label>
+                      <input type="number" inputMode="numeric" required value={formJual.hargaJualSatuan} onChange={(e) => setFormJual({ ...formJual, hargaJualSatuan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Penjualan (Rp)</label>
+                    <input type="number" inputMode="numeric" placeholder="e.g. 50000" value={formJual.biayaPenjualan} onChange={(e) => setFormJual({ ...formJual, biayaPenjualan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow active:scale-95">
+                    Selesaikan Penjualan ➔
+                  </button>
+                </form>
               </div>
             )}
 
             {/* TAB DASHBOARD / LAPORAN */}
             {activeTab === 'dashboard' && (
               <div className="space-y-4 sm:space-y-6">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+                  <div className="flex flex-col gap-2 pb-2 border-b border-slate-100">
+                    <h3 className="font-bold text-slate-800 text-sm">🔍 Filter Laporan</h3>
+                    
+                    <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-xl text-center">
+                      <button
+                        onClick={() => setReportFilterBy('PEMBELIAN')}
+                        className={`py-1.5 text-[10px] sm:text-xs font-bold rounded-lg transition ${
+                          reportFilterBy === 'PEMBELIAN' ? 'bg-slate-900 text-amber-400 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Pembelian
+                      </button>
+                      <button
+                        onClick={() => setReportFilterBy('PENGOLAHAN')}
+                        className={`py-1.5 text-[10px] sm:text-xs font-bold rounded-lg transition ${
+                          reportFilterBy === 'PENGOLAHAN' ? 'bg-slate-900 text-blue-400 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Pengolahan
+                      </button>
+                      <button
+                        onClick={() => setReportFilterBy('PENJUALAN')}
+                        className={`py-1.5 text-[10px] sm:text-xs font-bold rounded-lg transition ${
+                          reportFilterBy === 'PENJUALAN' ? 'bg-slate-900 text-emerald-400 shadow' : 'text-slate-600'
+                        }`}
+                      >
+                        Penjualan
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-xl text-center">
+                    <button
+                      onClick={() => setReportFilterType('ALL')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                        reportFilterType === 'ALL' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => setReportFilterType('MONTH')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                        reportFilterType === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                      }`}
+                    >
+                      Bulanan
+                    </button>
+                    <button
+                      onClick={() => setReportFilterType('RANGE')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                        reportFilterType === 'RANGE' ? 'bg-amber-500 text-slate-900 shadow' : 'text-slate-600'
+                      }`}
+                    >
+                      Rentang
+                    </button>
+                  </div>
+
+                  {reportFilterType === 'MONTH' && (
+                    <input
+                      type="month"
+                      value={reportFilterMonth}
+                      onChange={(e) => setReportFilterMonth(e.target.value)}
+                      className="w-full px-3 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                    />
+                  )}
+
+                  {reportFilterType === 'RANGE' && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        value={reportStartDate}
+                        onChange={(e) => setReportStartDate(e.target.value)}
+                        className="w-full px-2 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                      />
+                      <input
+                        type="date"
+                        value={reportEndDate}
+                        onChange={(e) => setReportEndDate(e.target.value)}
+                        className="w-full px-2 py-1.5 border rounded-lg text-xs font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Barang Mentah</span>
                     <p className="text-base sm:text-2xl font-black text-slate-800 mt-0.5">{totalBarangKotor.toFixed(2)}g</p>
+                    <span className="text-[10px] text-slate-500 block">Beli: {formatRupiah(totalBeliModal)}</span>
                   </div>
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Perak Murni</span>
@@ -2840,71 +3588,150 @@
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-                  <input
-                    type="text"
-                    placeholder="🔍 Cari kode, kategori, tempat, atau petugas..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
-                  />
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 bg-slate-900 text-white">
+                    <h3 className="font-bold text-xs sm:text-sm text-amber-400">👤 Ringkasan Aktivitas & Biaya Per User / PIC</h3>
+                  </div>
+
+                  <div className="p-3 sm:p-5 space-y-3">
+                    {userActivityStats.length === 0 ? (
+                      <p className="text-center py-4 text-xs text-slate-400">Belum ada data aktivitas user pada periode ini.</p>
+                    ) : (
+                      userActivityStats.map((u, idx) => {
+                        const totalBiayaUserBeli = u.beliTotalModal + u.beliTransport;
+
+                        return (
+                          <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                              <span className="font-bold text-sm text-slate-900">👤 {u.nama}</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80 space-y-1">
+                                <span className="font-bold text-[11px] text-amber-900 block border-b border-amber-200/60 pb-1">
+                                  📥 Pembelian ({u.beliCount} Trx)
+                                </span>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Volume Kotor:</span>
+                                  <span className="font-bold text-slate-800 font-mono">{u.beliGram.toFixed(2)}g</span>
+                                </div>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Modal Beli:</span>
+                                  <span className="font-bold text-slate-800 font-mono">{formatRupiah(u.beliTotalModal)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Biaya Transport:</span>
+                                  <span className="font-bold text-slate-800 font-mono">{formatRupiah(u.beliTransport)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] border-t border-amber-200/80 pt-1 mt-1">
+                                  <span className="font-bold text-amber-950">Total Biaya Beli:</span>
+                                  <span className="font-black text-amber-900 font-mono">{formatRupiah(totalBiayaUserBeli)}</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-blue-50/70 p-2.5 rounded-xl border border-blue-200/80 space-y-1">
+                                <span className="font-bold text-[11px] text-blue-900 block border-b border-blue-200/60 pb-1">
+                                  🧪 Pemurnian ({u.olahCount} Trx)
+                                </span>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Hasil Murni:</span>
+                                  <span className="font-bold text-blue-800 font-mono">{u.olahMurniGram.toFixed(2)}g</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] border-t border-blue-200/80 pt-1 mt-1">
+                                  <span className="font-bold text-blue-950">Biaya Pengolahan:</span>
+                                  <span className="font-black text-blue-900 font-mono">{formatRupiah(u.olahBiaya)}</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200/80 space-y-1">
+                                <span className="font-bold text-[11px] text-emerald-900 block border-b border-emerald-200/60 pb-1">
+                                  💰 Penjualan ({u.jualCount} Trx)
+                                </span>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Murni Terjual:</span>
+                                  <span className="font-bold text-emerald-800 font-mono">{u.jualMurniGram.toFixed(2)}g</span>
+                                </div>
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-slate-500">Biaya Penjualan:</span>
+                                  <span className="font-bold text-red-600 font-mono">{formatRupiah(u.jualBiaya)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] border-t border-emerald-200/80 pt-1 mt-1">
+                                  <span className="font-bold text-emerald-950">Total Omset Jual:</span>
+                                  <span className="font-black text-emerald-900 font-mono">{formatRupiah(u.jualOmset)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="p-4 border-b border-slate-200 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Riwayat Transaksi Pemurnian ({filteredTransactions.length})</h3>
+                  <div className="p-4 border-b border-slate-200 flex flex-col gap-2">
+                    <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Daftar Transaksi Realtime</h3>
+                    <input 
+                      type="text" 
+                      placeholder="🔍 Cari transaksi..." 
+                      value={searchTerm} 
+                      onChange={(e) => setSearchTerm(e.target.value)} 
+                      className="px-3 py-2 border rounded-xl text-xs w-full" 
+                    />
                   </div>
 
-                  <div className="p-3 space-y-3">
-                    {filteredTransactions.length === 0 ? (
-                      <p className="text-center py-8 text-xs text-slate-400">Tidak ada transaksi yang cocok dengan pencarian.</p>
-                    ) : (
-                      filteredTransactions.map((t) => (
-                        <div key={t.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold text-slate-900 bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[10px]">{t.codeId}</span>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase ${
-                              t.status === 'TERJUAL' ? 'bg-emerald-100 text-emerald-800' :
-                              t.status === 'SELESAI_OLAH' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {t.status}
-                            </span>
-                          </div>
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
+                        <tr>
+                          <th className="px-3 py-3">Kode</th>
+                          <th className="px-3 py-3">Tgl Ambil</th>
+                          <th className="px-3 py-3">Tgl Olah</th>
+                          <th className="px-3 py-3">Tgl Jual</th>
+                          <th className="px-3 py-3">Deskripsi Brg</th>
+                          <th className="px-3 py-3 text-right">Kotor (g)</th>
+                          <th className="px-3 py-3 text-right text-amber-300">Harga Beli/g</th>
+                          <th className="px-3 py-3 text-right">Total Beli</th>
+                          <th className="px-3 py-3 text-right">Murni (g)</th>
+                          <th className="px-3 py-3 text-right text-emerald-300">Harga Jual/g</th>
+                          <th className="px-3 py-3 text-right">Total Jual</th>
+                          <th className="px-3 py-3 text-right">Laba Bersih</th>
+                          <th className="px-3 py-3 text-center">Status</th>
+                          {currentUser.role === 'Admin' && <th className="px-3 py-3 text-center">Aksi</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredTransactions.map((t) => {
+                          const hargaBeliUnit = t.hargaBeliSatuan || (t.jumlahKotor ? Math.round(t.totalBeli / t.jumlahKotor) : 0);
+                          const hargaJualUnit = t.hargaJualSatuan || (t.jumlahMurni ? Math.round(t.totalJual / t.jumlahMurni) : 0);
 
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-bold text-slate-800 text-sm">{t.kategoriName}</p>
-                              <p className="text-[10px] text-slate-500">{t.tempatAmbil} ({t.lokasiAmbil || '-'}) | PIC: {t.pengambil}</p>
-                            </div>
-                            <div className="text-right">
-                              <span className="font-bold text-slate-900 block">{t.jumlahKotor}g (Kotor)</span>
-                              {t.jumlahMurni > 0 && <span className="font-bold text-blue-600 block">{t.jumlahMurni}g (Murni)</span>}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-white p-2 rounded-lg border text-[10px]">
-                            <div>
-                              <span className="text-slate-400 block">Total Modal Beli:</span>
-                              <span className="font-bold text-slate-800">{formatRupiah(t.totalBeli)}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-400 block">Total Omset Jual:</span>
-                              <span className="font-bold text-emerald-600">{formatRupiah(t.totalJual)}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-400 block">Laba Bersih:</span>
-                              <span className="font-bold text-amber-600">{formatRupiah(t.totalUntung)}</span>
-                            </div>
-                          </div>
-
-                          {currentUser.role === 'Admin' && (
-                            <div className="flex justify-end pt-1">
-                              <button onClick={() => handleDeleteTransaction(t.id)} className="text-red-500 hover:text-red-700 font-bold text-[10px]">🗑️ Hapus Transaksi</button>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
+                          return (
+                            <tr key={t.id} className="hover:bg-slate-50">
+                              <td className="px-3 py-3 font-bold">{t.codeId}</td>
+                              <td className="px-3 py-3">{t.tanggalAmbil}</td>
+                              <td className="px-3 py-3 text-blue-600 font-semibold">{t.tanggalOlah || '-'}</td>
+                              <td className="px-3 py-3 text-emerald-600 font-semibold">{t.tanggalPenjualan || '-'}</td>
+                              <td className="px-3 py-3">{t.kategoriName}</td>
+                              <td className="px-3 py-3 text-right font-mono">{t.jumlahKotor}</td>
+                              <td className="px-3 py-3 text-right font-mono font-semibold text-slate-600">{formatRupiah(hargaBeliUnit)}</td>
+                              <td className="px-3 py-3 text-right font-mono">{formatRupiah(t.totalBeli)}</td>
+                              <td className="px-3 py-3 text-right font-mono text-blue-600 font-bold">{t.jumlahMurni}</td>
+                              <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600">{hargaJualUnit > 0 ? formatRupiah(hargaJualUnit) : '-'}</td>
+                              <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold">{formatRupiah(t.totalJual)}</td>
+                              <td className="px-3 py-3 text-right font-mono text-amber-600 font-bold">{formatRupiah(t.totalUntung)}</td>
+                              <td className="px-3 py-3 text-center">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">{t.status}</span>
+                              </td>
+                              {currentUser.role === 'Admin' && (
+                                <td className="px-3 py-3 text-center">
+                                  <button onClick={() => handleDeleteTransaction(t.id)} className="text-red-500 hover:text-red-700 font-bold">🗑️</button>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
