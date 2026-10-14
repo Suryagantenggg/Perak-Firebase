@@ -1240,12 +1240,17 @@
         return true;
       });
 
+      // HANYA MENGHITUNG BARANG MENTAH YANG MASIH MENUNGGU OLAH
       const totalBarangKotor = filteredTransactions
         .filter(t => t.status === 'MENUNGGU_OLAH')
         .reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
 
+      // MODAL BELI HANYA UNTUK BARANG MENTAH YANG MASIH MENUNGGU OLAH
+      const totalBeliModal = filteredTransactions
+        .filter(t => t.status === 'MENUNGGU_OLAH')
+        .reduce((acc, t) => acc + (t.totalBeli || 0), 0);
+
       const totalPerakMurni = filteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
-      const totalBeliModal = filteredTransactions.reduce((acc, t) => acc + (t.totalBeli || 0), 0);
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
@@ -3534,7 +3539,7 @@
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Barang Mentah (Belum Olah)</span>
                     <p className="text-base sm:text-2xl font-black text-slate-800 mt-0.5">{totalBarangKotor.toFixed(2)}g</p>
-                    <span className="text-[10px] text-slate-500 block">Beli: {formatRupiah(totalBeliModal)}</span>
+                    <span className="text-[10px] text-slate-500 block">Sisa Modal Beli: {formatRupiah(totalBeliModal)}</span>
                   </div>
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase">Perak Murni</span>
