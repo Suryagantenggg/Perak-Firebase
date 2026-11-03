@@ -1250,7 +1250,11 @@
         .filter(t => t.status === 'MENUNGGU_OLAH')
         .reduce((acc, t) => acc + (t.totalBeli || 0), 0);
 
-      const totalPerakMurni = filteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
+      // PERAK MURNI HANYA MENGHITUNG YANG SELESAI OLAH (SIAP JUAL / BELUM TERJUAL)
+      const totalPerakMurni = filteredTransactions
+        .filter(t => t.status === 'SELESAI_OLAH')
+        .reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
+
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersih = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
@@ -1343,7 +1347,7 @@
           doc.text(`Filter Periode: ${filterPeriodeText}`, 14, 26);
 
           const pdfKotor = recapFilteredTransactions.filter(t => t.status === 'MENUNGGU_OLAH').reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
-          const pdfMurni = recapFilteredTransactions.reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
+          const pdfMurni = recapFilteredTransactions.filter(t => t.status === 'SELESAI_OLAH').reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
           const pdfBeli = recapFilteredTransactions.reduce((acc, t) => acc + (t.totalBeli || 0), 0);
           const pdfOmset = recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
           const pdfLaba = recapFilteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
@@ -1352,7 +1356,7 @@
           doc.rect(14, 29, 269, 14, 'F');
           doc.setFontSize(8);
           doc.setFont('helvetica', 'bold');
-          doc.text(`Total Mentah Belum Olah: ${pdfKotor.toFixed(2)}g  |  Total Murni: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
+          doc.text(`Total Mentah Belum Olah: ${pdfKotor.toFixed(2)}g  |  Total Murni Siap Jual: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
 
           const tableColumn = [
             "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor(g)", "H.Beli/g", "Total Beli", "Biaya Trans", "Murni(g)", "Biaya Olah", "H.Jual/g", "Total Jual", "Biaya Jual", "Laba Bersih", "Status"
@@ -3542,7 +3546,7 @@
                     <span className="text-[10px] text-slate-500 block">Sisa Modal Beli: {formatRupiah(totalBeliModal)}</span>
                   </div>
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Perak Murni</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Perak Murni (Siap Jual)</span>
                     <p className="text-base sm:text-2xl font-black text-blue-600 mt-0.5">{totalPerakMurni.toFixed(2)}g</p>
                   </div>
                   <div className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200">
