@@ -1015,6 +1015,7 @@
         }
       };
 
+      // State formAmbil diperbarui dengan opsi butuhPengolahan
       const [formAmbil, setFormAmbil] = useState({
         tanggal: getTodayFormatted(),
         pengambilSelect: '',
@@ -1023,7 +1024,8 @@
         kategoriCode: 'A',
         jumlahKotor: '',
         hargaBeliSatuan: '',
-        biayaTransport: ''
+        biayaTransport: '',
+        butuhPengolahan: true
       });
 
       const [formOlah, setFormOlah] = useState({
@@ -1041,6 +1043,7 @@
         biayaPenjualan: ''
       });
 
+      // Handler Pengambilan Diperbarui dengan Logika Tanpa Olah
       const handleSavePengambilan = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -1049,6 +1052,10 @@
         const hargaBeli = parseFloat(formAmbil.hargaBeliSatuan) || 0;
         const transport = parseFloat(formAmbil.biayaTransport) || 0;
         const selectedCat = categories.find(c => c.code === formAmbil.kategoriCode) || categories[0] || { code: 'A', name: 'Umum' };
+
+        const butuhOlah = formAmbil.butuhPengolahan;
+        const statusAwal = butuhOlah ? 'MENUNGGU_OLAH' : 'SELESAI_OLAH';
+        const jumlahMurniAwal = butuhOlah ? 0 : kotor;
 
         const payload = {
           codeId: 'TRX-' + Math.floor(1000 + Math.random() * 9000),
@@ -1061,11 +1068,11 @@
           hargaBeliSatuan: hargaBeli,
           totalBeli: kotor * hargaBeli,
           biayaTransport: transport,
-          pengolah: '-',
-          jumlahMurni: 0,
+          pengolah: butuhOlah ? '-' : 'Tanpa Olah (Langsung Jual)',
+          jumlahMurni: jumlahMurniAwal,
           biayaOlah: 0,
-          efisiensi: 0,
-          tanggalOlah: '',
+          efisiensi: butuhOlah ? 0 : 100,
+          tanggalOlah: butuhOlah ? '' : formAmbil.tanggal,
           tanggalPenjualan: '',
           tokoPembeli: '-',
           jumlahJual: 0,
@@ -1073,7 +1080,7 @@
           totalJual: 0,
           biayaPenjualan: 0,
           totalUntung: 0,
-          status: 'MENUNGGU_OLAH',
+          status: statusAwal,
           createdAt: Date.now()
         };
 
@@ -1082,7 +1089,16 @@
           await addDoc(collection(window.fbDb, "transactions"), payload);
           setLoading(false);
           showToast('🎉 Pembelian baru tersimpan di Firebase!');
-          setFormAmbil({ ...formAmbil, tempatAmbil: '', lokasiAmbil: '', jumlahKotor: '', hargaBeliSatuan: '', biayaTransport: '', pengambilSelect: currentUser ? currentUser.nama : '' });
+          setFormAmbil({ 
+            ...formAmbil, 
+            tempatAmbil: '', 
+            lokasiAmbil: '', 
+            jumlahKotor: '', 
+            hargaBeliSatuan: '', 
+            biayaTransport: '', 
+            butuhPengolahan: true,
+            pengambilSelect: currentUser ? currentUser.nama : '' 
+          });
           setActiveTab('dashboard');
         } catch (err) {
           setLoading(false);
@@ -1572,8 +1588,8 @@
           return wDate.startsWith(neracaFilterMonth);
         } else if (neracaFilterType === 'RANGE') {
           if (!wDate) return false;
-          if (neracaStartDate && wDate < wDate) return false;
-          if (neracaEndDate && wDate > wDate) return false;
+          if (neracaStartDate && wDate < neracaStartDate) return false;
+          if (neracaEndDate && wDate > neracaEndDate) return false;
           return true;
         }
         return true;
@@ -3290,6 +3306,7 @@
               </div>
             )}
 
+            {/* TAB PEMBELIAN (DENGAN OPSI PILIHAN JALUR PEMROSESAN) */}
             {activeTab === 'pengambilan' && !isClient && (
               <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-6">
@@ -3322,6 +3339,35 @@
                         <option key={cat.code} value={cat.code}>[{cat.code}] {cat.name}</option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* ELEMEN BARU: PILIHAN JALUR PEMROSESAN BARANG */}
+                  <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                    <label className="block text-xs font-bold text-slate-800 uppercase">
+                      🔄 Jalur Pemrosesan Barang
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                        <input
+                          type="radio"
+                          name="butuhPengolahan"
+                          checked={formAmbil.butuhPengolahan === true}
+                          onChange={() => setFormAmbil({ ...formAmbil, butuhPengolahan: true })}
+                          className="text-amber-500 focus:ring-amber-500"
+                        />
+                        🧪 Melalui Pengolahan / Pemurnian
+                      </label>
+                      <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                        <input
+                          type="radio"
+                          name="butuhPengolahan"
+                          checked={formAmbil.butuhPengolahan === false}
+                          onChange={() => setFormAmbil({ ...formAmbil, butuhPengolahan: false })}
+                          className="text-emerald-600 focus:ring-emerald-500"
+                        />
+                        ⚡ Tanpa Olah (Langsung Siap Jual)
+                      </label>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
