@@ -1159,29 +1159,36 @@
       };
 
       const selectedTrxJualList = transactions.filter(t => formJual.selectedTrxIds.includes(t.id));
-      const totalMurniJualSelected = selectedTrxJualList.reduce((sum, t) => sum + t.jumlahMurni, 0);
+      const totalMurniJualSelected = selectedTrxJualList.reduce((sum, t) => {
+        const isTanpaOlah = t.pengolah === 'Tanpa Olah (Langsung Jual)';
+        return sum + (isTanpaOlah ? t.jumlahKotor : t.jumlahMurni);
+      }, 0);
+      
       const hargaJualVal = parseFloat(formJual.hargaJualSatuan) || 0;
       const totalBiayaPenjualanVal = parseFloat(formJual.biayaPenjualan) || 0;
 
       const handleSavePenjualan = async (e) => {
         e.preventDefault();
         if (formJual.selectedTrxIds.length === 0) return alert('Pilih minimal 1 barang!');
-        if (hargaJualVal <= 0) return alert('Harga jual per gram harus > 0!');
+        if (hargaJualVal <= 0) return alert('Harga jual per satuan/gram harus > 0!');
 
         setLoading(true);
         const { doc, updateDoc } = window.fbFS;
 
         try {
           for (let t of selectedTrxJualList) {
-            const porsiMurni = t.jumlahMurni / totalMurniJualSelected;
-            const totalJualItem = parseFloat((t.jumlahMurni * hargaJualVal).toFixed(0));
-            const biayaPenjualanItem = parseFloat((totalBiayaPenjualanVal * porsiMurni).toFixed(0));
+            const isTanpaOlah = t.pengolah === 'Tanpa Olah (Langsung Jual)';
+            const qtyAcuan = isTanpaOlah ? t.jumlahKotor : t.jumlahMurni;
+            const porsiItem = qtyAcuan / (totalMurniJualSelected || 1);
+            
+            const totalJualItem = parseFloat((qtyAcuan * hargaJualVal).toFixed(0));
+            const biayaPenjualanItem = parseFloat((totalBiayaPenjualanVal * porsiItem).toFixed(0));
             const totalUntungItem = totalJualItem - t.totalBeli - t.biayaTransport - t.biayaOlah - biayaPenjualanItem;
 
             const docRef = doc(window.fbDb, "transactions", t.id);
             await updateDoc(docRef, {
               tanggalPenjualan: formJual.tanggalJual,
-              jumlahJual: t.jumlahMurni,
+              jumlahJual: qtyAcuan,
               hargaJualSatuan: hargaJualVal,
               totalJual: totalJualItem,
               tokoPembeli: currentUser.nama,
@@ -1387,7 +1394,7 @@
           doc.text(`Total Mentah Belum Olah: ${pdfKotor.toFixed(2)}g  |  Total Murni Siap Jual: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
 
           const tableColumn = [
-            "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor/Unit", "H.Beli", "Total Beli", "Biaya Trans", "Murni(g)", "Biaya Olah", "H.Jual/g", "Total Jual", "Biaya Jual", "Laba Bersih", "Status"
+            "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor/Unit", "H.Beli", "Total Beli", "Biaya Trans", "Murni(g)", "Biaya Olah", "H.Jual", "Total Jual", "Biaya Jual", "Laba Bersih", "Status"
           ];
 
           const tableRows = recapFilteredTransactions.map(t => {
@@ -3479,15 +3486,18 @@
               </div>
             )}
 
+            {/* TAB PENJUALAN (DINAMIS DENGAN DUKUNGAN TANPA OLAH / PCS) */}
             {activeTab === 'penjualan' && !isClient && (
               <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-6">
-                  <h2 className="text-base sm:text-lg font-bold">💰 Input Penjualan Perak Murni</h2>
+                  <h2 className="text-base sm:text-lg font-bold">
+                    💰 Input Penjualan Barang / Perak
+                  </h2>
                 </div>
                 <form onSubmit={handleSavePenjualan} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                      Pilih Perak Siap Jual ({formJual.selectedTrxIds.length} Dipilih)
+                      Pilih Barang Siap Jual ({formJual.selectedTrxIds.length} Dipilih)
                     </label>
                     {pendingJualList.length === 0 ? (
                       <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500 text-center">
@@ -3497,16 +3507,21 @@
                       <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
                         {pendingJualList.map((t) => {
                           const isChecked = formJual.selectedTrxIds.includes(t.id);
+                          const isTanpaOlah = t.pengolah === 'Tanpa Olah (Langsung Jual)';
                           return (
                             <label key={t.id} className={`flex items-center justify-between p-3 cursor-pointer transition ${isChecked ? 'bg-emerald-50' : ''}`}>
                               <div className="flex items-center gap-3">
                                 <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelectJual(t.id)} className="w-5 h-5 text-emerald-600 rounded" />
                                 <div>
                                   <p className="font-bold text-xs text-slate-800">{t.codeId} - {t.kategoriName}</p>
-                                  <p className="text-[10px] text-slate-500">Olah: {t.pengolah}</p>
+                                  <p className="text-[10px] text-slate-500">
+                                    {isTanpaOlah ? '⚡ Tanpa Olah' : `Olah: ${t.pengolah}`}
+                                  </p>
                                 </div>
                               </div>
-                              <span className="font-mono font-bold text-xs text-blue-600">{t.jumlahMurni}g</span>
+                              <span className="font-mono font-bold text-xs text-blue-600">
+                                {isTanpaOlah ? `${t.jumlahKotor} Pcs` : `${t.jumlahMurni}g`}
+                              </span>
                             </label>
                           );
                         })}
@@ -3514,16 +3529,33 @@
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Jual</label>
-                      <input type="date" required value={formJual.tanggalJual} onChange={(e) => setFormJual({ ...formJual, tanggalJual: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Jual / Gram (Rp)</label>
-                      <input type="number" inputMode="numeric" required value={formJual.hargaJualSatuan} onChange={(e) => setFormJual({ ...formJual, hargaJualSatuan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700" />
-                    </div>
-                  </div>
+                  {/* FORM INPUT HARGA DINAMIS */}
+                  {(() => {
+                    const hasTanpaOlah = selectedTrxJualList.some(t => t.pengolah === 'Tanpa Olah (Langsung Jual)');
+                    const labelHarga = hasTanpaOlah ? 'Harga Jual / Satuan (Pcs) (Rp)' : 'Harga Jual / Gram (Rp)';
+                    const placeholderHarga = hasTanpaOlah ? 'e.g. 250000' : 'e.g. 15000';
+
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Tanggal Jual</label>
+                          <input type="date" required value={formJual.tanggalJual} onChange={(e) => setFormJual({ ...formJual, tanggalJual: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">{labelHarga}</label>
+                          <input 
+                            type="number" 
+                            inputMode="numeric" 
+                            required 
+                            placeholder={placeholderHarga}
+                            value={formJual.hargaJualSatuan} 
+                            onChange={(e) => setFormJual({ ...formJual, hargaJualSatuan: e.target.value })} 
+                            className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-emerald-700" 
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Penjualan (Rp)</label>
@@ -3749,6 +3781,7 @@
                         <p className="text-center py-6 text-xs text-slate-400">Tidak ada transaksi ditemukan.</p>
                       ) : (
                         filteredTransactions.map((t) => {
+                          const isTanpaOlah = t.pengolah === 'Tanpa Olah (Langsung Jual)';
                           const hargaBeliUnit = t.hargaBeliSatuan || (t.jumlahKotor ? Math.round(t.totalBeli / t.jumlahKotor) : 0);
                           const hargaJualUnit = t.hargaJualSatuan || (t.jumlahMurni ? Math.round(t.totalJual / t.jumlahMurni) : 0);
 
@@ -3785,13 +3818,19 @@
 
                               <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-mono text-[11px]">
                                 <div>
-                                  <span className="text-[9px] font-sans text-slate-400 block">Jml/Kotor:</span>
+                                  <span className="text-[9px] font-sans text-slate-400 block">
+                                    {isTanpaOlah ? 'Qty (Pcs):' : 'Jml Kotor:'}
+                                  </span>
                                   <span className="font-bold text-slate-800">{t.jumlahKotor}</span>
                                   <span className="text-[9px] text-slate-500 block mt-0.5">@{formatRupiah(hargaBeliUnit)}</span>
                                 </div>
                                 <div>
-                                  <span className="text-[9px] font-sans text-slate-400 block">Murni:</span>
-                                  <span className="font-bold text-blue-600">{t.jumlahMurni || 0}g</span>
+                                  <span className="text-[9px] font-sans text-slate-400 block">
+                                    {isTanpaOlah ? 'Satuan Jual:' : 'Murni:'}
+                                  </span>
+                                  <span className="font-bold text-blue-600">
+                                    {isTanpaOlah ? `${t.jumlahKotor} Pcs` : `${t.jumlahMurni || 0}g`}
+                                  </span>
                                   <span className="text-[9px] text-slate-500 block mt-0.5">
                                     {hargaJualUnit > 0 ? `@${formatRupiah(hargaJualUnit)}` : '-'}
                                   </span>
@@ -3841,13 +3880,13 @@
                             <th className="px-3 py-3">Tgl Olah</th>
                             <th className="px-3 py-3">Tgl Jual</th>
                             <th className="px-3 py-3">Deskripsi Brg</th>
-                            <th className="px-3 py-3 text-right">Jml / Kotor</th>
+                            <th className="px-3 py-3 text-right">Kotor / Unit</th>
                             <th className="px-3 py-3 text-right text-amber-300">H.Beli Satuan</th>
                             <th className="px-3 py-3 text-right">Total Beli</th>
                             <th className="px-3 py-3 text-right text-orange-300">Biaya Trans</th>
-                            <th className="px-3 py-3 text-right">Murni (g)</th>
+                            <th className="px-3 py-3 text-right">Murni (g) / Pcs</th>
                             <th className="px-3 py-3 text-right text-blue-300">Biaya Olah</th>
-                            <th className="px-3 py-3 text-right text-emerald-300">Harga Jual/g</th>
+                            <th className="px-3 py-3 text-right text-emerald-300">Harga Jual Satuan</th>
                             <th className="px-3 py-3 text-right">Total Jual</th>
                             <th className="px-3 py-3 text-right text-red-300">Biaya Jual</th>
                             <th className="px-3 py-3 text-right">Laba Bersih</th>
@@ -3857,6 +3896,7 @@
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {filteredTransactions.map((t) => {
+                            const isTanpaOlah = t.pengolah === 'Tanpa Olah (Langsung Jual)';
                             const hargaBeliUnit = t.hargaBeliSatuan || (t.jumlahKotor ? Math.round(t.totalBeli / t.jumlahKotor) : 0);
                             const hargaJualUnit = t.hargaJualSatuan || (t.jumlahMurni ? Math.round(t.totalJual / t.jumlahMurni) : 0);
 
@@ -3871,7 +3911,9 @@
                                 <td className="px-3 py-3 text-right font-mono font-semibold text-slate-600">{formatRupiah(hargaBeliUnit)}</td>
                                 <td className="px-3 py-3 text-right font-mono">{formatRupiah(t.totalBeli)}</td>
                                 <td className="px-3 py-3 text-right font-mono text-orange-600">{formatRupiah(t.biayaTransport || 0)}</td>
-                                <td className="px-3 py-3 text-right font-mono text-blue-600 font-bold">{t.jumlahMurni}</td>
+                                <td className="px-3 py-3 text-right font-mono text-blue-600 font-bold">
+                                  {isTanpaOlah ? `${t.jumlahKotor} Pcs` : `${t.jumlahMurni}g`}
+                                </td>
                                 <td className="px-3 py-3 text-right font-mono text-blue-600">{formatRupiah(t.biayaOlah || 0)}</td>
                                 <td className="px-3 py-3 text-right font-mono font-bold text-emerald-600">{hargaJualUnit > 0 ? formatRupiah(hargaJualUnit) : '-'}</td>
                                 <td className="px-3 py-3 text-right font-mono text-emerald-600 font-bold">{formatRupiah(t.totalJual)}</td>
