@@ -1015,7 +1015,6 @@
         }
       };
 
-      // State formAmbil diperbarui dengan opsi butuhPengolahan
       const [formAmbil, setFormAmbil] = useState({
         tanggal: getTodayFormatted(),
         pengambilSelect: '',
@@ -1043,7 +1042,6 @@
         biayaPenjualan: ''
       });
 
-      // Handler Pengambilan Diperbarui dengan Logika Tanpa Olah
       const handleSavePengambilan = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -1256,17 +1254,14 @@
         return true;
       });
 
-      // HANYA MENGHITUNG BARANG MENTAH YANG MASIH MENUNGGU OLAH
       const totalBarangKotor = filteredTransactions
         .filter(t => t.status === 'MENUNGGU_OLAH')
         .reduce((acc, t) => acc + (t.jumlahKotor || 0), 0);
 
-      // MODAL BELI HANYA UNTUK BARANG MENTAH YANG MASIH MENUNGGU OLAH
       const totalBeliModal = filteredTransactions
         .filter(t => t.status === 'MENUNGGU_OLAH')
         .reduce((acc, t) => acc + (t.totalBeli || 0), 0);
 
-      // PERAK MURNI HANYA MENGHITUNG YANG SELESAI OLAH (SIAP JUAL / BELUM TERJUAL)
       const totalPerakMurni = filteredTransactions
         .filter(t => t.status === 'SELESAI_OLAH')
         .reduce((acc, t) => acc + (t.jumlahMurni || 0), 0);
@@ -1274,7 +1269,6 @@
       const totalOmsetPenjualan = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalJual || 0), 0);
       const totalLabaBersihKotor = filteredTransactions.filter(t => t.status === 'TERJUAL').reduce((acc, t) => acc + (t.totalUntung || 0), 0);
 
-      // PERHITUNGAN LABA DITARIK BERDASARKAN FILTER TAB LAPORAN
       const filteredProfitWithdrawalListReport = profitWithdrawalList.filter(pw => {
         const pwDate = pw.tanggal;
         if (reportFilterType === 'MONTH') {
@@ -1393,7 +1387,7 @@
           doc.text(`Total Mentah Belum Olah: ${pdfKotor.toFixed(2)}g  |  Total Murni Siap Jual: ${pdfMurni.toFixed(2)}g  |  Total Beli: ${formatRupiah(pdfBeli)}  |  Total Omset: ${formatRupiah(pdfOmset)}  |  Laba Bersih: ${formatRupiah(pdfLaba)}`, 18, 38);
 
           const tableColumn = [
-            "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor(g)", "H.Beli/g", "Total Beli", "Biaya Trans", "Murni(g)", "Biaya Olah", "H.Jual/g", "Total Jual", "Biaya Jual", "Laba Bersih", "Status"
+            "Kode", "Tgl Ambil", "Tgl Olah", "Tgl Jual", "Kategori", "Lokasi", "PIC Ambil", "Kotor/Unit", "H.Beli", "Total Beli", "Biaya Trans", "Murni(g)", "Biaya Olah", "H.Jual/g", "Total Jual", "Biaya Jual", "Laba Bersih", "Status"
           ];
 
           const tableRows = recapFilteredTransactions.map(t => {
@@ -1408,7 +1402,7 @@
               t.kategoriName || '-',
               t.tempatAmbil || '-',
               t.pengambil || '-',
-              (t.jumlahKotor || 0).toFixed(2),
+              (t.jumlahKotor || 0).toString(),
               formatRupiah(hBeli),
               formatRupiah(t.totalBeli || 0),
               formatRupiah(t.biayaTransport || 0),
@@ -1602,8 +1596,8 @@
           return pwDate.startsWith(neracaFilterMonth);
         } else if (neracaFilterType === 'RANGE') {
           if (!pwDate) return false;
-          if (neracaStartDate && pwDate < pwDate) return false;
-          if (neracaEndDate && pwDate > pwDate) return false;
+          if (neracaStartDate && pwDate < neracaStartDate) return false;
+          if (neracaEndDate && pwDate > neracaEndDate) return false;
           return true;
         }
         return true;
@@ -3306,7 +3300,7 @@
               </div>
             )}
 
-            {/* TAB PEMBELIAN (DENGAN OPSI PILIHAN JALUR PEMROSESAN) */}
+            {/* TAB PEMBELIAN (DENGAN INPUT DINAMIS) */}
             {activeTab === 'pengambilan' && !isClient && (
               <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-slate-900 text-white p-4 sm:p-6">
@@ -3341,7 +3335,7 @@
                     </select>
                   </div>
 
-                  {/* ELEMEN BARU: PILIHAN JALUR PEMROSESAN BARANG */}
+                  {/* ELEMEN: PILIHAN JALUR PEMROSESAN BARANG */}
                   <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
                     <label className="block text-xs font-bold text-slate-800 uppercase">
                       🔄 Jalur Pemrosesan Barang
@@ -3370,18 +3364,47 @@
                     </div>
                   </div>
 
+                  {/* INPUT DINAMIS SESUAI JALUR PEMROSESAN */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Jumlah (Gram)</label>
-                      <input type="number" step="0.01" inputMode="decimal" required value={formAmbil.jumlahKotor} onChange={(e) => setFormAmbil({ ...formAmbil, jumlahKotor: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold" />
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        {formAmbil.butuhPengolahan ? 'Jumlah (Gram)' : 'Jumlah (Unit / Pcs)'}
+                      </label>
+                      <input 
+                        type="number" 
+                        step={formAmbil.butuhPengolahan ? "0.01" : "1"} 
+                        inputMode="decimal" 
+                        required 
+                        placeholder={formAmbil.butuhPengolahan ? "e.g. 150.5" : "e.g. 10"}
+                        value={formAmbil.jumlahKotor} 
+                        onChange={(e) => setFormAmbil({ ...formAmbil, jumlahKotor: e.target.value })} 
+                        className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Harga Beli /g (Rp)</label>
-                      <input type="number" inputMode="numeric" required value={formAmbil.hargaBeliSatuan} onChange={(e) => setFormAmbil({ ...formAmbil, hargaBeliSatuan: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        {formAmbil.butuhPengolahan ? 'Harga Beli /g (Rp)' : 'Harga Per Satuan / Pcs (Rp)'}
+                      </label>
+                      <input 
+                        type="number" 
+                        inputMode="numeric" 
+                        required 
+                        placeholder={formAmbil.butuhPengolahan ? "e.g. 12000" : "e.g. 250000"}
+                        value={formAmbil.hargaBeliSatuan} 
+                        onChange={(e) => setFormAmbil({ ...formAmbil, hargaBeliSatuan: e.target.value })} 
+                        className="w-full px-3 py-2.5 border rounded-xl text-sm font-bold text-amber-700" 
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya Transport (Rp)</label>
-                      <input type="number" inputMode="numeric" placeholder="e.g. 50000" value={formAmbil.biayaTransport} onChange={(e) => setFormAmbil({ ...formAmbil, biayaTransport: e.target.value })} className="w-full px-3 py-2.5 border rounded-xl text-sm" />
+                      <input 
+                        type="number" 
+                        inputMode="numeric" 
+                        placeholder="e.g. 50000" 
+                        value={formAmbil.biayaTransport} 
+                        onChange={(e) => setFormAmbil({ ...formAmbil, biayaTransport: e.target.value })} 
+                        className="w-full px-3 py-2.5 border rounded-xl text-sm" 
+                      />
                     </div>
                   </div>
 
@@ -3652,8 +3675,8 @@
                                   📥 Pembelian ({u.beliCount} Trx)
                                 </span>
                                 <div className="flex justify-between text-[10px]">
-                                  <span className="text-slate-500">Volume Kotor:</span>
-                                  <span className="font-bold text-slate-800 font-mono">{u.beliGram.toFixed(2)}g</span>
+                                  <span className="text-slate-500">Volume/Jml:</span>
+                                  <span className="font-bold text-slate-800 font-mono">{u.beliGram.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between text-[10px]">
                                   <span className="text-slate-500">Modal Beli:</span>
@@ -3720,10 +3743,7 @@
                     />
                   </div>
 
-                  {/* CONTAINER DAFTAR TRANSAKSI REALTIME */}
                   <div className="p-3 sm:p-0">
-                    
-                    {/* 1. TAMPILAN KARTU UNTUK MOBILE (Layar Kecil / HP) */}
                     <div className="block sm:hidden space-y-3">
                       {filteredTransactions.length === 0 ? (
                         <p className="text-center py-6 text-xs text-slate-400">Tidak ada transaksi ditemukan.</p>
@@ -3734,7 +3754,6 @@
 
                           return (
                             <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3 text-xs">
-                              {/* Header Kartu: Kode Trx, Status, & Tombol Hapus */}
                               <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
                                 <div className="flex items-center gap-2">
                                   <span className="font-extrabold text-slate-900 bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[11px]">
@@ -3755,7 +3774,6 @@
                                 )}
                               </div>
 
-                              {/* Deskripsi & Tanggal */}
                               <div>
                                 <p className="font-extrabold text-slate-800 text-sm">{t.kategoriName}</p>
                                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 mt-1">
@@ -3765,11 +3783,10 @@
                                 </div>
                               </div>
 
-                              {/* Grid Rincian Volume & Harga */}
                               <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-mono text-[11px]">
                                 <div>
-                                  <span className="text-[9px] font-sans text-slate-400 block">Kotor:</span>
-                                  <span className="font-bold text-slate-800">{t.jumlahKotor}g</span>
+                                  <span className="text-[9px] font-sans text-slate-400 block">Jml/Kotor:</span>
+                                  <span className="font-bold text-slate-800">{t.jumlahKotor}</span>
                                   <span className="text-[9px] text-slate-500 block mt-0.5">@{formatRupiah(hargaBeliUnit)}</span>
                                 </div>
                                 <div>
@@ -3781,14 +3798,12 @@
                                 </div>
                               </div>
 
-                              {/* Rincian Keuangan & Biaya Per Transaksi */}
                               <div className="space-y-1 border-t border-slate-100 pt-2 font-mono text-[11px]">
                                 <div className="flex justify-between">
                                   <span className="text-slate-500 font-sans text-[10px]">Total Beli:</span>
                                   <span className="font-bold text-slate-800">{formatRupiah(t.totalBeli)}</span>
                                 </div>
                                 
-                                {/* Rincian Biaya Aktivitas */}
                                 <div className="flex justify-between text-[10px]">
                                   <span className="text-orange-600 font-sans">Biaya Transport:</span>
                                   <span className="text-orange-600">{formatRupiah(t.biayaTransport || 0)}</span>
@@ -3817,7 +3832,6 @@
                       )}
                     </div>
 
-                    {/* 2. TAMPILAN TABEL UNTUK DESKTOP / LAPTOP (hidden di mobile) */}
                     <div className="hidden sm:block overflow-x-auto">
                       <table className="w-full text-left text-xs whitespace-nowrap">
                         <thead className="bg-slate-900 text-white uppercase text-[10px] font-bold">
@@ -3827,8 +3841,8 @@
                             <th className="px-3 py-3">Tgl Olah</th>
                             <th className="px-3 py-3">Tgl Jual</th>
                             <th className="px-3 py-3">Deskripsi Brg</th>
-                            <th className="px-3 py-3 text-right">Kotor (g)</th>
-                            <th className="px-3 py-3 text-right text-amber-300">Harga Beli/g</th>
+                            <th className="px-3 py-3 text-right">Jml / Kotor</th>
+                            <th className="px-3 py-3 text-right text-amber-300">H.Beli Satuan</th>
                             <th className="px-3 py-3 text-right">Total Beli</th>
                             <th className="px-3 py-3 text-right text-orange-300">Biaya Trans</th>
                             <th className="px-3 py-3 text-right">Murni (g)</th>
