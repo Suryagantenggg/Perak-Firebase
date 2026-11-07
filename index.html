@@ -11,6 +11,8 @@
   <!-- JSPDF & AUTOTABLE FOR PDF GENERATION -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <!-- SHEETJS FOR EXCEL GENERATION -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     /* Custom scrollbar halus untuk mobile navigation */
     .no-scrollbar::-webkit-scrollbar {
@@ -1511,6 +1513,110 @@
         }
       };
 
+      const handleExportExcel = () => {
+        try {
+          if (typeof XLSX === 'undefined') {
+            alert('Library SheetJS belum termuat. Pastikan koneksi internet stabil!');
+            return;
+          }
+
+          // 1. DATA USER
+          const dataUsers = userList.map(u => ({
+            "UID": u.uid,
+            "Nama": u.nama || '-',
+            "Email": u.email || '-',
+            "Role": u.role || 'Client'
+          }));
+
+          // 2. DATA PEMODAL
+          const dataPemodal = pemodalList.map(p => {
+            const totalTambahan = additionList.filter(a => a.pemodalId === p.id).reduce((s, a) => s + (a.jumlahTambah || 0), 0);
+            const totalDitarik = withdrawalList.filter(w => w.pemodalId === p.id).reduce((s, w) => s + (w.jumlahTarik || 0), 0);
+            const modalAktif = p.jumlahModal + totalTambahan - totalDitarik;
+
+            return {
+              "Nama Pemodal": p.namaPemodal,
+              "Modal Awal Setor (Rp)": p.jumlahModal || 0,
+              "Total Penambahan (Rp)": totalTambahan,
+              "Total Penarikan Modal (Rp)": totalDitarik,
+              "Sisa Modal Aktif (Rp)": modalAktif,
+              "Tanggal Bergabung": p.tanggalBergabung || '-',
+              "Kontak": p.kontak || '-',
+              "Catatan": p.catatan || '-'
+            };
+          });
+
+          // 3. DATA PEMBELIAN
+          const dataPembelian = transactions.map(t => {
+            const isTanpaOlah = t.pengolah === 'Tanpa Olah (Langsung Jual)';
+            return {
+              "Kode Transaksi": t.codeId || '-',
+              "Tanggal Ambil": t.tanggalAmbil || '-',
+              "PIC Pengambil": t.pengambil || '-',
+              "Tempat Ambil": t.tempatAmbil || '-',
+              "Lokasi Ambil": t.lokasiAmbil || '-',
+              "Kategori": t.kategoriName || '-',
+              "Jalur Olah": isTanpaOlah ? "Tanpa Olah" : "Melalui Olah",
+              "Jumlah Kotor / Unit": t.jumlahKotor || 0,
+              "Harga Beli Satuan (Rp)": t.hargaBeliSatuan || 0,
+              "Total Beli (Rp)": t.totalBeli || 0,
+              "Biaya Transport (Rp)": t.biayaTransport || 0,
+              "Status": t.status || '-'
+            };
+          });
+
+          // 4. DATA PENGOLAHAN
+          const dataPengolahan = transactions
+            .filter(t => t.status === 'SELESAI_OLAH' || t.status === 'TERJUAL')
+            .map(t => ({
+              "Kode Transaksi": t.codeId || '-',
+              "Tanggal Olah": t.tanggalOlah || '-',
+              "PIC Pengolah": t.pengolah || '-',
+              "Kategori": t.kategoriName || '-',
+              "Jumlah Kotor (g)": t.jumlahKotor || 0,
+              "Hasil Perak Murni (g)": t.jumlahMurni || 0,
+              "Biaya Olah (Rp)": t.biayaOlah || 0,
+              "Efisiensi (%)": t.efisiensi || 0,
+              "Status": t.status || '-'
+            }));
+
+          // 5. DATA PENJUALAN
+          const dataPenjualan = transactions
+            .filter(t => t.status === 'TERJUAL')
+            .map(t => {
+              const isTanpaOlah = t.pengolah === 'Tanpa Olah (Langsung Jual)';
+              return {
+                "Kode Transaksi": t.codeId || '-',
+                "Tanggal Penjualan": t.tanggalPenjualan || '-',
+                "PIC Penjual / Toko": t.tokoPembeli || '-',
+                "Kategori": t.kategoriName || '-',
+                "Jumlah Terjual": isTanpaOlah ? `${t.jumlahKotor} Pcs` : `${t.jumlahMurni} g`,
+                "Harga Jual Satuan (Rp)": t.hargaJualSatuan || 0,
+                "Total Jual / Omset (Rp)": t.totalJual || 0,
+                "Biaya Penjualan (Rp)": t.biayaPenjualan || 0,
+                "Laba Bersih (Rp)": t.totalUntung || 0
+              };
+            });
+
+          // BUAT WORKBOOK DAN TAMBAHKAN SHEET
+          const wb = XLSX.utils.book_new();
+
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataUsers), "User System");
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataPemodal), "Data Pemodal");
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataPembelian), "Data Pembelian");
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataPengolahan), "Data Pengolahan");
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataPenjualan), "Data Penjualan");
+
+          // DOWNLOAD FILE EXCEL
+          const today = getTodayFormatted();
+          XLSX.writeFile(wb, `Export_Data_Refining_Perak_${today}.xlsx`);
+          showToast('📊 Berhasil mengunduh File Excel ke komputer!');
+        } catch (err) {
+          console.error("Gagal export Excel:", err);
+          alert('Gagal mengekspor file Excel: ' + err.message);
+        }
+      };
+
       const pemodalFilteredTransactions = transactions.filter(t => {
         if (t.status !== 'TERJUAL') return false;
         const tJualDate = t.tanggalPenjualan;
@@ -2649,7 +2755,7 @@
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex justify-between items-center">
+                  <div className="bg-slate-900 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                       <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
                         👥 Kontrol Pengguna
@@ -2657,6 +2763,13 @@
                       </h2>
                       <p className="text-xs text-slate-400 mt-0.5">Kelola wewenang dan akun pengguna sistem (Admin, Petugas, Client).</p>
                     </div>
+
+                    <button
+                      onClick={handleExportExcel}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-xs w-full sm:w-auto justify-center active:scale-95"
+                    >
+                      📊 Export Data Excel (.xlsx)
+                    </button>
                   </div>
 
                   <div className="p-3 sm:p-6 space-y-3">
